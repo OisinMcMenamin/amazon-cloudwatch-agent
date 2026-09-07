@@ -21,7 +21,7 @@ scripts/
 | `aws_eks`   | Pod Identity (addon + role + association) + the CloudWatch Observability EKS add-on       |
 | `azure_vm`  | Managed identity + AWS IAM trust + install via `az vm run-command`                        |
 | `azure_aks` | OIDC issuer / workload identity + AWS IAM trust + the CloudWatch Observability Helm chart |
-| `gcp_vm`    | Service account discovery + AWS IAM trust + install via `gcloud compute ssh`              |
+| `gcp_gce`    | Service account discovery + AWS IAM trust + install via `gcloud compute ssh`              |
 | `gcp_gke`   | Cluster OIDC issuer + AWS IAM trust + the CloudWatch Observability Helm chart             |
 
 ## Quick start
@@ -69,7 +69,7 @@ The flow is `azure/setup.sh` (identity) -> `aws/setup.sh` (trust) -> `azure/setu
 
 ### GCP platforms
 
-`gcp_vm` / `gcp_gke` span two clouds the same way: identity and install need the
+`gcp_gce` / `gcp_gke` span two clouds the same way: identity and install need the
 Google Cloud CLI (`gcloud`), trust needs the AWS CLI. In a shell with both the
 dispatcher runs the whole chain, otherwise it runs whichever step this shell can
 and prints a command to paste into the next shell.
@@ -77,7 +77,7 @@ and prints a command to paste into the next shell.
 The flow is `gcp/setup.sh` (identity) -> `aws/setup.sh` (trust) -> `gcp/setup.sh`
 (install), and `gcp/setup.sh` picks its mode from `CWAGENT_AWS_ROLE_ARN` exactly
 like the Azure script. The identity step is read-only: it discovers the VM's
-service account unique ID (`gcp_vm`) or the cluster's OIDC issuer URL
+service account unique ID (`gcp_gce`) or the cluster's OIDC issuer URL
 (`gcp_gke`) for the trust step. A VM install is pushed over `gcloud compute
 ssh`; a GKE install uses the CloudWatch Observability Helm chart when `helm`,
 `kubectl`, and `gke-gcloud-auth-plugin` are present, otherwise the commands are
@@ -110,7 +110,7 @@ CWAGENT_PLATFORM=gcp_gke CWAGENT_AWS_ROLE_ARN=arn:aws:iam::123456789012:role/Clo
 
 | Variable                                | Meaning                                                                  |
 |-----------------------------------------|--------------------------------------------------------------------------|
-| `CWAGENT_PLATFORM`                      | `aws_ec2` \| `aws_ecs` \| `aws_eks` \| `azure_vm` \| `azure_aks` \| `gcp_vm` \| `gcp_gke` |
+| `CWAGENT_PLATFORM`                      | `aws_ec2` \| `aws_ecs` \| `aws_eks` \| `azure_vm` \| `azure_aks` \| `gcp_gce` \| `gcp_gke` |
 | `CWAGENT_AWS_ROLE_NAME`                 | IAM role name (default: `CloudWatchAgentServerRole`)                     |
 | `CWAGENT_AWS_REGION`                    | AWS region telemetry is sent to (required)                               |
 | `CWAGENT_AWS_ENABLE_TRANSACTION_SEARCH` | When set (`1`/`true`/`yes`/`on`), enable Transaction Search if it is off |
@@ -127,14 +127,13 @@ CWAGENT_PLATFORM=gcp_gke CWAGENT_AWS_ROLE_ARN=arn:aws:iam::123456789012:role/Clo
 | `CWAGENT_AZURE_SUBSCRIPTION`       | `azure_vm`, `azure_aks` | Subscription ID or name (Cloud Shell's default is used when unset)                      |
 | `CWAGENT_AZURE_RESOURCE_GROUP`     | `azure_vm`, `azure_aks` | Resource group (not needed when `CWAGENT_AZURE_RESOURCE_ID` is set)                     |
 | `CWAGENT_AZURE_VM_NAME`            | `azure_vm`              | VM name (not needed when `CWAGENT_AZURE_RESOURCE_ID` is set)                            |
-| `CWAGENT_AWS_ROLE_ARN`             | `azure_vm`, `azure_aks`, `gcp_vm`, `gcp_gke` | IAM role ARN; when set, the cloud-side setup script also installs  |
+| `CWAGENT_AWS_ROLE_ARN`             | `azure_vm`, `azure_aks`, `gcp_gce`, `gcp_gke` | IAM role ARN; when set, the cloud-side setup script also installs  |
 | `CWAGENT_AZURE_TENANT_ID`          | `azure_vm`              | Azure tenant ID (produced by `azure/setup.sh`, consumed by `aws/setup.sh`)              |
 | `CWAGENT_AZURE_OIDC_ISSUER`        | `azure_aks`             | AKS OIDC issuer URL (produced by `azure/setup.sh`, consumed by `aws/setup.sh`)          |
-| `CWAGENT_GCP_PROJECT`              | `gcp_vm`, `gcp_gke`     | Project ID (the gcloud config default is used when unset)                               |
-| `CWAGENT_GCP_ZONE`                 | `gcp_vm`                | Zone the VM lives in                                                                    |
-| `CWAGENT_GCP_VM_NAME`              | `gcp_vm`                | VM name                                                                                 |
-| `CWAGENT_GCP_LOCATION`             | `gcp_gke`               | Zone or region the cluster lives in                                                     |
-| `CWAGENT_GCP_SA_UNIQUE_ID`         | `gcp_vm`                | GCP service account unique ID (produced by `gcp/setup.sh`, consumed by `aws/setup.sh`)  |
+| `CWAGENT_GCP_PROJECT`              | `gcp_gce`, `gcp_gke`     | Project ID (the gcloud config default is used when unset)                               |
+| `CWAGENT_GCP_LOCATION`             | `gcp_gce`, `gcp_gke`     | Zone of the instance (`gcp_gce`) or zone/region of the cluster (`gcp_gke`)              |
+| `CWAGENT_GCP_INSTANCE_NAME`        | `gcp_gce`                | Instance name                                                                           |
+| `CWAGENT_GCP_SA_UNIQUE_ID`         | `gcp_gce`                | GCP service account unique ID (produced by `gcp/setup.sh`, consumed by `aws/setup.sh`)  |
 | `CWAGENT_GCP_OIDC_ISSUER`          | `gcp_gke`               | GKE cluster OIDC issuer URL (produced by `gcp/setup.sh`, consumed by `aws/setup.sh`)    |
 
 The agent runs in the `amazon-cloudwatch` namespace on Kubernetes. Telemetry uses

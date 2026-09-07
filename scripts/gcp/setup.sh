@@ -7,7 +7,7 @@
 #
 # Discovers the GCP-side identity the agent uses and installs it:
 #
-#   gcp_vm      reads the service account attached to the GCE VM and its
+#   gcp_gce      reads the service account attached to the GCE VM and its
 #               unique ID (the value the AWS trust policy conditions on),
 #               then pushes install.sh to it via "gcloud compute ssh",
 #               printing the command instead when SSH cannot reach the VM
@@ -31,16 +31,16 @@
 #     ./gcp/setup.sh
 #
 #   Environment variables (piped/automated):
-#     CWAGENT_PLATFORM=gcp_vm \
+#     CWAGENT_PLATFORM=gcp_gce \
 #     CWAGENT_AWS_ROLE_ARN=arn:aws:iam::... \
 #     CWAGENT_AWS_REGION=us-east-1 \
-#     CWAGENT_GCP_ZONE=us-east1-b \
-#     CWAGENT_GCP_VM_NAME=my-vm \
+#     CWAGENT_GCP_LOCATION=us-east1-b \
+#     CWAGENT_GCP_INSTANCE_NAME=my-vm \
 #       ./gcp/setup.sh
 #
 # Environment variables:
 #   Common:
-#     CWAGENT_PLATFORM              gcp_vm | gcp_gke
+#     CWAGENT_PLATFORM              gcp_gce | gcp_gke
 #     CWAGENT_AWS_ROLE_ARN          IAM role ARN, install runs too when set
 #     CWAGENT_AWS_REGION            AWS region telemetry is sent to (required
 #                                   for install)
@@ -48,9 +48,9 @@
 #                                   gcloud config default is used when unset)
 #     CWAGENT_EMIT_ENV              When set (1/true/yes/on), print eval-able KEY='value'
 #                                   lines on stdout and route all logging to stderr
-#   gcp_vm:
-#     CWAGENT_GCP_ZONE              Zone the VM lives in
-#     CWAGENT_GCP_VM_NAME           VM name
+#   gcp_gce:
+#     CWAGENT_GCP_LOCATION          Zone the instance lives in
+#     CWAGENT_GCP_INSTANCE_NAME     Instance name
 #   gcp_gke:
 #     CWAGENT_GCP_LOCATION          Zone or region the cluster lives in
 #     CWAGENT_K8S_CLUSTER_NAME      Cluster name
@@ -61,8 +61,7 @@ PLATFORM="${CWAGENT_PLATFORM:-}"
 ROLE_ARN="${CWAGENT_AWS_ROLE_ARN:-}"
 REGION="${CWAGENT_AWS_REGION:-}"
 PROJECT="${CWAGENT_GCP_PROJECT:-}"
-ZONE="${CWAGENT_GCP_ZONE:-}"
-VM_NAME="${CWAGENT_GCP_VM_NAME:-}"
+INSTANCE_NAME="${CWAGENT_GCP_INSTANCE_NAME:-}"
 LOCATION="${CWAGENT_GCP_LOCATION:-}"
 CLUSTER_NAME="${CWAGENT_K8S_CLUSTER_NAME:-}"
 EMIT_ENV="${CWAGENT_EMIT_ENV:-}"
@@ -126,20 +125,20 @@ Usage:
   $0                    Interactive wizard (TTY)
 
   Or via environment variables:
-  CWAGENT_PLATFORM=gcp_vm CWAGENT_GCP_ZONE=us-east1-b CWAGENT_GCP_VM_NAME=my-vm $0
+  CWAGENT_PLATFORM=gcp_gce CWAGENT_GCP_LOCATION=us-east1-b CWAGENT_GCP_INSTANCE_NAME=my-vm $0
   CWAGENT_PLATFORM=gcp_gke CWAGENT_GCP_LOCATION=us-east1-b CWAGENT_K8S_CLUSTER_NAME=my-cluster $0
 
 Environment variables:
   Common:
-    CWAGENT_PLATFORM              gcp_vm | gcp_gke
+    CWAGENT_PLATFORM              gcp_gce | gcp_gke
     CWAGENT_AWS_ROLE_ARN          IAM role ARN; when set, install runs too
     CWAGENT_AWS_REGION            AWS region (required for install)
     CWAGENT_GCP_PROJECT           Project ID of the resource (the gcloud config
                                   default is used when unset)
     CWAGENT_EMIT_ENV              Print eval-able KEY='value' lines on stdout
-  gcp_vm:
-    CWAGENT_GCP_ZONE              Zone the VM lives in
-    CWAGENT_GCP_VM_NAME           VM name
+  gcp_gce:
+    CWAGENT_GCP_LOCATION          Zone the instance lives in
+    CWAGENT_GCP_INSTANCE_NAME     Instance name
   gcp_gke:
     CWAGENT_GCP_LOCATION          Zone or region the cluster lives in
     CWAGENT_K8S_CLUSTER_NAME      Cluster name
@@ -212,21 +211,21 @@ prompt() {
 
 interactive_setup() {
      printf '\nSelect platform:\n' >&3
-     printf '  gcp_vm      GCE VM\n' >&3
+     printf '  gcp_gce      GCE VM\n' >&3
      printf '  gcp_gke     GKE cluster\n' >&3
      ask "Platform:"
      read -r choice || die "no platform selected"
      case "${choice}" in
-     gcp_vm) PLATFORM=gcp_vm ;;
+     gcp_gce) PLATFORM=gcp_gce ;;
      gcp_gke) PLATFORM=gcp_gke ;;
      *) die "invalid platform: ${choice}" ;;
      esac
 
      printf '\n' >&3
      case "${PLATFORM}" in
-     gcp_vm)
-          prompt ZONE "Zone"
-          prompt VM_NAME "VM name"
+     gcp_gce)
+          prompt LOCATION "Zone"
+          prompt INSTANCE_NAME "Instance name"
           ;;
      gcp_gke)
           prompt LOCATION "Location (zone or region)"
@@ -256,8 +255,9 @@ check_prerequisites() {
      [ -n "${PROJECT}" ] || die "no GCP project (set CWAGENT_GCP_PROJECT or run 'gcloud config set project <project-id>')"
      # Describe doubles as the existence and access check, like the Azure
      # script's scoped account show.
-     gcloud projects describe "${PROJECT}" --format='value(projectId)' >/dev/null 2>&1 ||
+     _resolved_project=$(gcloud projects describe "${PROJECT}" --format='value(projectId)' 2>/dev/null) ||
           die "cannot access project ${PROJECT} (run 'gcloud auth login'; check 'gcloud projects list')"
+     PROJECT="${_resolved_project}"
      log "GCP account: ${ACTIVE_ACCOUNT}"
      log "GCP project: ${PROJECT}"
 }
@@ -282,8 +282,8 @@ linux_install_cmd() {
 run_via_gcloud_ssh() {
      ssh_cmd="$1"
      logaction "Running install via gcloud compute ssh"
-     gcloud_scoped compute ssh "${VM_NAME}" \
-          --zone "${ZONE}" \
+     gcloud_scoped compute ssh "${INSTANCE_NAME}" \
+          --zone "${LOCATION}" \
           --command "${ssh_cmd}" >&3 2>&3
 }
 
@@ -291,8 +291,8 @@ run_via_gcloud_ssh() {
 # GCE VM: identity + install
 # =============================================================================
 
-setup_gcp_vm() {
-     if [ -z "${ZONE}" ] || [ -z "${VM_NAME}" ]; then usage; fi
+setup_gcp_gce() {
+     if [ -z "${LOCATION}" ] || [ -z "${INSTANCE_NAME}" ]; then usage; fi
 
      section "Reading GCE VM identity..."
 
@@ -300,13 +300,13 @@ setup_gcp_vm() {
      # service account to an existing GCE VM requires stopping it first, so a
      # VM without one is reported rather than mutated. VMs get the project's
      # default compute service account at creation unless opted out.
-     SA_EMAIL=$(gcloud_scoped compute instances describe "${VM_NAME}" \
-          --zone "${ZONE}" \
+     SA_EMAIL=$(gcloud_scoped compute instances describe "${INSTANCE_NAME}" \
+          --zone "${LOCATION}" \
           --format 'value(serviceAccounts[0].email)' 2>/dev/null) ||
-          die "cannot read VM ${VM_NAME} in zone ${ZONE} of project ${PROJECT} (check the name, zone, and project)"
+          die "cannot read VM ${INSTANCE_NAME} in zone ${LOCATION} of project ${PROJECT} (check the name, zone, and project)"
      if [ -z "${SA_EMAIL}" ]; then
-          die "no service account attached to ${VM_NAME}. Attach one (the VM must be stopped first):
-  gcloud compute instances set-service-account ${VM_NAME} --zone ${ZONE} --service-account <sa-email>"
+          die "no service account attached to ${INSTANCE_NAME}. Attach one (the VM must be stopped first):
+  gcloud compute instances set-service-account ${INSTANCE_NAME} --zone ${LOCATION} --service-account <sa-email>"
      fi
      log "Service account: ${SA_EMAIL}"
 
@@ -320,8 +320,8 @@ setup_gcp_vm() {
 
      add_env CWAGENT_PLATFORM "${PLATFORM}"
      add_env CWAGENT_GCP_PROJECT "${PROJECT}"
-     add_env CWAGENT_GCP_ZONE "${ZONE}"
-     add_env CWAGENT_GCP_VM_NAME "${VM_NAME}"
+     add_env CWAGENT_GCP_LOCATION "${LOCATION}"
+     add_env CWAGENT_GCP_INSTANCE_NAME "${INSTANCE_NAME}"
      add_env CWAGENT_GCP_SA_UNIQUE_ID "${SA_UNIQUE_ID}"
 
      # No ARN yet: identity is done, emit the unique ID for the AWS trust step and stop.
@@ -336,16 +336,16 @@ setup_gcp_vm() {
      # Reachability probe, mirroring the EC2 path's SSM Online check: separates
      # "cannot SSH to the VM" (fall back to printing the command) from "install
      # failed" (die). The probe also performs gcloud's one-time SSH key setup.
-     if gcloud_scoped compute ssh "${VM_NAME}" --zone "${ZONE}" --command true >/dev/null 2>&1; then
-          section "Installing agent on ${VM_NAME}..."
-          run_via_gcloud_ssh "${INSTALL_CMD}" || die "Install script failed on ${VM_NAME}"
-          log "Agent installed on ${VM_NAME}"
+     if gcloud_scoped compute ssh "${INSTANCE_NAME}" --zone "${LOCATION}" --command true >/dev/null 2>&1; then
+          section "Installing agent on ${INSTANCE_NAME}..."
+          run_via_gcloud_ssh "${INSTALL_CMD}" || die "Install script failed on ${INSTANCE_NAME}"
+          log "Agent installed on ${INSTANCE_NAME}"
           return
      fi
-     logwarn "cannot reach ${VM_NAME} over SSH (check network access and compute.instances.osLogin/SSH key permissions)"
+     logwarn "cannot reach ${INSTANCE_NAME} over SSH (check network access and compute.instances.osLogin/SSH key permissions)"
 
      printf '\n' >&3
-     printf 'Done. Run the following on %s to install and start the agent:\n' "${VM_NAME}" >&3
+     printf 'Done. Run the following on %s to install and start the agent:\n' "${INSTANCE_NAME}" >&3
      printf '\n' >&3
      printf '%s\n' "  ${INSTALL_CMD}" >&3
 }
@@ -454,8 +454,8 @@ main() {
      fi
 
      case "${PLATFORM}" in
-     gcp_vm | gcp_gke) ;;
-     *) die "unsupported platform: ${PLATFORM:-<unset>} (valid: gcp_vm, gcp_gke)" ;;
+     gcp_gce | gcp_gke) ;;
+     *) die "unsupported platform: ${PLATFORM:-<unset>} (valid: gcp_gce, gcp_gke)" ;;
      esac
 
      # Region is only needed for the install, so require it only when the ARN is set.
@@ -466,7 +466,7 @@ main() {
      check_prerequisites
 
      case "${PLATFORM}" in
-     gcp_vm) setup_gcp_vm ;;
+     gcp_gce) setup_gcp_gce ;;
      gcp_gke) setup_gcp_gke ;;
      esac
 

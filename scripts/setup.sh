@@ -13,7 +13,7 @@
 #       aws/setup.sh (trust + install, one AWS shell)
 #   azure_vm / azure_aks
 #       azure/setup.sh (identity) -> aws/setup.sh (trust) -> azure/setup.sh (install)
-#   gcp_vm / gcp_gke
+#   gcp_gce / gcp_gke
 #       gcp/setup.sh (identity) -> aws/setup.sh (trust) -> gcp/setup.sh (install)
 #
 # azure/setup.sh and gcp/setup.sh set up their cloud's identity while the role
@@ -36,7 +36,7 @@
 #   CWAGENT_PLATFORM=aws_ec2 CWAGENT_AWS_INSTANCE_ID=i-123 ./setup.sh
 #
 # Environment variables:
-#   CWAGENT_PLATFORM                      aws_ec2 | aws_ecs | aws_eks | azure_vm | azure_aks | gcp_vm | gcp_gke
+#   CWAGENT_PLATFORM                      aws_ec2 | aws_ecs | aws_eks | azure_vm | azure_aks | gcp_gce | gcp_gke
 #   CWAGENT_AWS_ROLE_NAME                 IAM role name (default: CloudWatchAgentServerRole)
 #   CWAGENT_AWS_REGION                    AWS region telemetry is sent to
 #   CWAGENT_AWS_ENABLE_TRANSACTION_SEARCH When set (1/true/yes/on), enable Transaction
@@ -63,9 +63,8 @@
 #   GCP:
 #   CWAGENT_GCP_PROJECT                   Project ID (the gcloud config default
 #                                         is used when unset)
-#   CWAGENT_GCP_ZONE                      Zone the VM lives in (gcp_vm only)
-#   CWAGENT_GCP_VM_NAME                   VM name (gcp_vm only)
-#   CWAGENT_GCP_LOCATION                  Zone or region of the cluster (gcp_gke only)
+#   CWAGENT_GCP_LOCATION                  Zone of the instance (gcp_gce) or zone/region of the cluster (gcp_gke)
+#   CWAGENT_GCP_INSTANCE_NAME             Instance name (gcp_gce only)
 #
 #   Kubernetes (EKS, AKS, GKE):
 #   CWAGENT_K8S_CLUSTER_NAME              Cluster name
@@ -84,8 +83,7 @@ SUBSCRIPTION="${CWAGENT_AZURE_SUBSCRIPTION:-}"
 RESOURCE_GROUP="${CWAGENT_AZURE_RESOURCE_GROUP:-}"
 VM_NAME="${CWAGENT_AZURE_VM_NAME:-}"
 GCP_PROJECT="${CWAGENT_GCP_PROJECT:-}"
-GCP_ZONE="${CWAGENT_GCP_ZONE:-}"
-GCP_VM_NAME="${CWAGENT_GCP_VM_NAME:-}"
+GCP_INSTANCE_NAME="${CWAGENT_GCP_INSTANCE_NAME:-}"
 GCP_LOCATION="${CWAGENT_GCP_LOCATION:-}"
 ECS_LAUNCH_TYPE="${CWAGENT_AWS_ECS_LAUNCH_TYPE:-}"
 # Identity/trust values that cross from one setup script to the next. On a
@@ -130,7 +128,7 @@ Usage:
   CWAGENT_PLATFORM=aws_ec2 CWAGENT_AWS_INSTANCE_ID=i-123 $0
 
 Environment variables:
-  CWAGENT_PLATFORM                        aws_ec2 | aws_ecs | aws_eks | azure_vm | azure_aks | gcp_vm | gcp_gke
+  CWAGENT_PLATFORM                        aws_ec2 | aws_ecs | aws_eks | azure_vm | azure_aks | gcp_gce | gcp_gke
   CWAGENT_AWS_ROLE_NAME                   IAM role name (default: CloudWatchAgentServerRole)
   CWAGENT_AWS_REGION                      AWS region telemetry is sent to
   CWAGENT_AWS_ENABLE_TRANSACTION_SEARCH   Enable Transaction Search in the region
@@ -150,9 +148,8 @@ Environment variables:
 
   GCP:
   CWAGENT_GCP_PROJECT                     Project ID (gcloud config default when unset)
-  CWAGENT_GCP_ZONE                        Zone the VM lives in (gcp_vm only)
-  CWAGENT_GCP_VM_NAME                     VM name (gcp_vm only)
-  CWAGENT_GCP_LOCATION                    Zone or region of the cluster (gcp_gke only)
+  CWAGENT_GCP_LOCATION                    Zone of the instance (gcp_gce) or zone/region of the cluster (gcp_gke)
+  CWAGENT_GCP_INSTANCE_NAME               Instance name (gcp_gce only)
 
   Kubernetes (EKS, AKS, GKE):
   CWAGENT_K8S_CLUSTER_NAME                Cluster name
@@ -199,7 +196,7 @@ interactive_setup() {
           printf '  aws_eks     EKS cluster (add-on)\n'
           printf '  azure_vm    Azure VM\n'
           printf '  azure_aks   AKS cluster (Helm)\n'
-          printf '  gcp_vm      GCE VM\n'
+          printf '  gcp_gce      GCE VM\n'
           printf '  gcp_gke     GKE cluster (Helm)\n'
           ask "Platform:"
           read -r PLATFORM || die "no platform selected"
@@ -226,9 +223,9 @@ interactive_setup() {
                prompt CLUSTER_NAME "Cluster name"
           fi
           ;;
-     gcp_vm)
-          prompt GCP_ZONE "Zone"
-          prompt GCP_VM_NAME "VM name"
+     gcp_gce)
+          prompt GCP_LOCATION "Zone"
+          prompt GCP_INSTANCE_NAME "VM name"
           ;;
      gcp_gke)
           prompt GCP_LOCATION "Location (zone or region)"
@@ -268,8 +265,7 @@ export_env() {
      export CWAGENT_AZURE_RESOURCE_GROUP="${RESOURCE_GROUP}"
      export CWAGENT_AZURE_VM_NAME="${VM_NAME}"
      export CWAGENT_GCP_PROJECT="${GCP_PROJECT}"
-     export CWAGENT_GCP_ZONE="${GCP_ZONE}"
-     export CWAGENT_GCP_VM_NAME="${GCP_VM_NAME}"
+     export CWAGENT_GCP_INSTANCE_NAME="${GCP_INSTANCE_NAME}"
      export CWAGENT_GCP_LOCATION="${GCP_LOCATION}"
      export CWAGENT_AWS_ECS_LAUNCH_TYPE="${ECS_LAUNCH_TYPE}"
      export CWAGENT_AZURE_TENANT_ID="${TENANT_ID}"
@@ -305,9 +301,8 @@ CWAGENT_AZURE_OIDC_ISSUER
 CWAGENT_GCP_SA_UNIQUE_ID
 CWAGENT_GCP_OIDC_ISSUER
 CWAGENT_GCP_PROJECT
-CWAGENT_GCP_ZONE
-CWAGENT_GCP_VM_NAME
 CWAGENT_GCP_LOCATION
+CWAGENT_GCP_INSTANCE_NAME
 CWAGENT_AWS_ROLE_ARN
 CWAGENT_AWS_REGION
 CWAGENT_K8S_CLUSTER_NAME"
@@ -334,8 +329,7 @@ load_script() {
      SA_UNIQUE_ID="${CWAGENT_GCP_SA_UNIQUE_ID:-${SA_UNIQUE_ID}}"
      GCP_OIDC_ISSUER="${CWAGENT_GCP_OIDC_ISSUER:-${GCP_OIDC_ISSUER}}"
      GCP_PROJECT="${CWAGENT_GCP_PROJECT:-${GCP_PROJECT}}"
-     GCP_ZONE="${CWAGENT_GCP_ZONE:-${GCP_ZONE}}"
-     GCP_VM_NAME="${CWAGENT_GCP_VM_NAME:-${GCP_VM_NAME}}"
+     GCP_INSTANCE_NAME="${CWAGENT_GCP_INSTANCE_NAME:-${GCP_INSTANCE_NAME}}"
      GCP_LOCATION="${CWAGENT_GCP_LOCATION:-${GCP_LOCATION}}"
      ROLE_ARN="${CWAGENT_AWS_ROLE_ARN:-${ROLE_ARN}}"
      CLUSTER_NAME="${CWAGENT_K8S_CLUSTER_NAME:-${CLUSTER_NAME}}"
@@ -355,7 +349,7 @@ require_identity_output() {
      case "${PLATFORM}" in
      azure_vm) require_output "azure/setup.sh" "${TENANT_ID}" "a tenant ID" ;;
      azure_aks) require_output "azure/setup.sh" "${OIDC_ISSUER}" "an OIDC issuer URL" ;;
-     gcp_vm) require_output "gcp/setup.sh" "${SA_UNIQUE_ID}" "a service account unique ID" ;;
+     gcp_gce) require_output "gcp/setup.sh" "${SA_UNIQUE_ID}" "a service account unique ID" ;;
      gcp_gke) require_output "gcp/setup.sh" "${GCP_OIDC_ISSUER}" "an OIDC issuer URL" ;;
      esac
 }
@@ -382,8 +376,7 @@ print_resume() {
      add_kv CWAGENT_GCP_SA_UNIQUE_ID "${SA_UNIQUE_ID}"
      add_kv CWAGENT_GCP_OIDC_ISSUER "${GCP_OIDC_ISSUER}"
      add_kv CWAGENT_GCP_PROJECT "${GCP_PROJECT}"
-     add_kv CWAGENT_GCP_ZONE "${GCP_ZONE}"
-     add_kv CWAGENT_GCP_VM_NAME "${GCP_VM_NAME}"
+     add_kv CWAGENT_GCP_INSTANCE_NAME "${GCP_INSTANCE_NAME}"
      add_kv CWAGENT_GCP_LOCATION "${GCP_LOCATION}"
      add_kv CWAGENT_K8S_CLUSTER_NAME "${CLUSTER_NAME}"
      add_kv CWAGENT_AWS_REGION "${REGION}"
@@ -456,7 +449,7 @@ orchestrate_azure() {
 # right step.
 orchestrate_gcp() {
      case "${PLATFORM}" in
-     gcp_vm) [ -n "${SA_UNIQUE_ID}" ] && identity_done=1 || identity_done="" ;;
+     gcp_gce) [ -n "${SA_UNIQUE_ID}" ] && identity_done=1 || identity_done="" ;;
      gcp_gke) [ -n "${GCP_OIDC_ISSUER}" ] && identity_done=1 || identity_done="" ;;
      esac
      [ -n "${ROLE_ARN}" ] && trust_done=1 || trust_done=""
@@ -508,8 +501,8 @@ main() {
      case "${PLATFORM}" in
      aws_ec2 | aws_ecs | aws_eks) orchestrate_aws ;;
      azure_vm | azure_aks) orchestrate_azure ;;
-     gcp_vm | gcp_gke) orchestrate_gcp ;;
-     *) die "unsupported platform: ${PLATFORM} (valid: aws_ec2, aws_ecs, aws_eks, azure_vm, azure_aks, gcp_vm, gcp_gke)" ;;
+     gcp_gce | gcp_gke) orchestrate_gcp ;;
+     *) die "unsupported platform: ${PLATFORM} (valid: aws_ec2, aws_ecs, aws_eks, azure_vm, azure_aks, gcp_gce, gcp_gke)" ;;
      esac
 }
 
