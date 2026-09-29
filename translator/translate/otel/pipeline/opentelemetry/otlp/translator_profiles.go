@@ -73,8 +73,7 @@ func (t *profilesPipelineTranslator) Translate(conf *confmap.Conf) (*common.Comp
 	}
 	processors.Set(transformprocessor.NewTranslatorWithName(common.Identity))
 	processors.Set(resourceprocessor.NewTranslator(
-		resourceprocessor.WithAttributes(map[string]string{serviceNameAttribute: fallbackServiceName}),
-		resourceprocessor.WithAttributesAction(resourceprocessor.ActionInsert),
+		resourceprocessor.WithOrderedActions(profilesServiceNameActions()),
 		common.WithName(profilesExporterName),
 	))
 
@@ -87,4 +86,10 @@ func (t *profilesPipelineTranslator) Translate(conf *confmap.Conf) (*common.Comp
 		)),
 		Extensions: common.NewTranslatorMap(sigv4Ext, agentHealthExt),
 	}, nil
+}
+
+func profilesServiceNameActions() []resourceprocessor.AttributeAction {
+	return []resourceprocessor.AttributeAction{
+		{Action: resourceprocessor.ActionInsert, Key: serviceNameAttribute, Value: fallbackServiceName},
+	}
 }
