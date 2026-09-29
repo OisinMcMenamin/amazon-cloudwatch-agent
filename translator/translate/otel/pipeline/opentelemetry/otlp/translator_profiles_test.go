@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor"
 	"github.com/stretchr/testify/assert"
@@ -121,9 +122,9 @@ func TestProfilesPipelineTranslator(t *testing.T) {
 			ecs:    true,
 			want: &want{
 				receivers:  []string{"otlp/grpc_127_0_0_1_4317", "otlp/http_127_0_0_1_4318"},
-				processors: []string{"transform/identity", "resource/profiles"},
+				processors: []string{"resourcedetection/profiles", "transform/identity", "resource/profiles"},
 				exporters:  []string{"otlp_http/profiles"},
-				extensions: []string{"sigv4auth/monitoring", "agenthealth/opentelemetry_profiles"},
+				extensions: []string{"sigv4auth/monitoring", "agenthealth/opentelemetry_profiles", "agenthealth/statuscode"},
 			},
 		},
 		"WithKubernetesAndClusterName": {
@@ -264,7 +265,6 @@ func TestProfilesServiceNameNotInferredOffEC2(t *testing.T) {
 	}{
 		"OnPrem":     {mode: config.ModeOnPrem},
 		"Kubernetes": {mode: config.ModeEC2, k8sMode: config.ModeEKS},
-		"ECS":        {mode: config.ModeEC2, ecs: true},
 	}
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -281,6 +281,34 @@ func TestProfilesServiceNameNotInferredOffEC2(t *testing.T) {
 			assert.Equal(t, "unknown_service", cfg.AttributesActions[0].Value)
 		})
 	}
+}
+
+func TestProfilesServiceNameInferredOnECS(t *testing.T) {
+	t.Cleanup(otlpreceiver.ClearConfigCache)
+	resetGlobalConfig(t, "us-east-1")
+	stubEC2ServiceName(t, "should-not-be-used")
+	setECS(t, true)
+	conf := confmap.NewFromStringMap(otlpSectionConf)
+	got, err := (&profilesPipelineTranslator{}).Translate(conf)
+	require.NoError(t, err)
+	detectionTranslator, ok := got.Processors.Get(component.MustNewIDWithName("resourcedetection", "profiles"))
+	require.True(t, ok)
+	detectionCfg, err := detectionTranslator.Translate(conf)
+	require.NoError(t, err)
+	detection, ok := detectionCfg.(*resourcedetectionprocessor.Config)
+	require.True(t, ok)
+	assert.Equal(t, []string{"env", "ecs", "ec2"}, detection.Detectors)
+	assert.True(t, detection.DetectorConfig.ECSConfig.ResourceAttributes.AwsEcsTaskFamily.Enabled)
+	require.NotNil(t, detection.MiddlewareID)
+	assert.Equal(t, "agenthealth/statuscode", detection.MiddlewareID.String())
+
+	cfg := profilesResourceProcessorConfig(t, conf)
+	require.Len(t, cfg.AttributesActions, 2)
+	assert.EqualValues(t, "insert", cfg.AttributesActions[0].Action)
+	assert.Equal(t, "service.name", cfg.AttributesActions[0].Key)
+	assert.Equal(t, "aws.ecs.task.family", cfg.AttributesActions[0].FromAttribute)
+	assert.EqualValues(t, "insert", cfg.AttributesActions[1].Action)
+	assert.Equal(t, "unknown_service", cfg.AttributesActions[1].Value)
 }
 
 func TestProfilesIdentityTransformCarriesProfileStatements(t *testing.T) {
@@ -431,7 +459,7 @@ func assertProfilesInvariants(t *testing.T, got *common.ComponentTranslators) {
 	resourceDetectionIndex, identityIndex := -1, -1
 	for i, id := range keys {
 		switch id.String() {
-		case "resourcedetection/opentelemetry":
+		case "resourcedetection/opentelemetry", "resourcedetection/profiles":
 			resourceDetectionIndex = i
 		case "transform/identity":
 			identityIndex = i

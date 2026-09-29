@@ -27,11 +27,17 @@ import (
 )
 
 const (
-	profilesExporterName = "profiles"
-	monitoringService    = "monitoring"
-	profilesPath         = "/v1development/profiles"
-	serviceNameAttribute = "service.name"
-	fallbackServiceName  = "unknown_service"
+	profilesExporterName   = "profiles"
+	monitoringService      = "monitoring"
+	profilesPath           = "/v1development/profiles"
+	serviceNameAttribute   = "service.name"
+	ecsTaskFamilyAttribute = "aws.ecs.task.family"
+	fallbackServiceName    = "unknown_service"
+
+	platformKubernetes = "kubernetes"
+	platformECS        = "ecs"
+	platformEC2        = "ec2"
+	platformOther      = ""
 )
 
 type profilesPipelineTranslator struct {
@@ -55,14 +61,19 @@ func (t *profilesPipelineTranslator) Translate(conf *confmap.Conf) (*common.Comp
 	sigv4Ext := sigv4auth.NewTranslatorWithService(monitoringService)
 	agentHealthExt := agenthealth.NewTranslator(agenthealth.OtelProfilesName, []string{"*"}, agenthealth.WithAdditionalAuth(sigv4Ext.ID()))
 
+	platform := inferencePlatform()
 	processors := common.NewTranslatorMap[component.Config, component.ID]()
+	extensions := common.NewTranslatorMap[component.Config, component.ID](sigv4Ext, agentHealthExt)
 	if resourceAttrs := resourceprocessor.NewResourceAttributesTranslator(conf); resourceAttrs != nil {
 		processors.Set(resourceAttrs)
 	}
-	if !ecsutil.GetECSUtilSingleton().IsECS() {
+	if platform == platformECS {
+		processors.Set(resourcedetection.NewTranslator(resourcedetection.WithName(profilesExporterName), resourcedetection.WithECSConfig(resourcedetection.ProfilesECSResourceDetectionConfig)))
+		extensions.Set(agenthealth.NewTranslatorWithStatusCode(agenthealth.StatusCodeName, nil, true))
+	} else {
 		processors.Set(resourcedetection.NewTranslator(resourcedetection.WithName(common.OpenTelemetryKey)))
 	}
-	if context.CurrentContext().KubernetesMode() != "" {
+	if platform == platformKubernetes {
 		processors.Set(k8sattributesprocessor.NewTranslator(profilesExporterName, k8sattributesprocessor.WithPodIPAssociation()))
 		setClusterName, err := transformprocessor.NewSetClusterNameTranslator(conf)
 		if err != nil {
@@ -74,7 +85,7 @@ func (t *profilesPipelineTranslator) Translate(conf *confmap.Conf) (*common.Comp
 	}
 	processors.Set(transformprocessor.NewTranslatorWithName(common.Identity))
 	processors.Set(resourceprocessor.NewTranslator(
-		resourceprocessor.WithOrderedActions(profilesServiceNameActions()),
+		resourceprocessor.WithOrderedActions(profilesServiceNameActions(platform)),
 		common.WithName(profilesExporterName),
 	))
 
@@ -85,25 +96,32 @@ func (t *profilesPipelineTranslator) Translate(conf *confmap.Conf) (*common.Comp
 			otlphttp.EndpointConfig{ProfilesEndpoint: common.ServiceEndpoint(monitoringService, region, profilesPath)},
 			otlphttp.WithAuthenticator(agentHealthExt.ID()),
 		)),
-		Extensions: common.NewTranslatorMap(sigv4Ext, agentHealthExt),
+		Extensions: extensions,
 	}, nil
 }
 
-func profilesServiceNameActions() []resourceprocessor.AttributeAction {
-	actions := make([]resourceprocessor.AttributeAction, 0, 2)
-	if inferred := inferredEC2ServiceName(); inferred != "" {
-		actions = append(actions, resourceprocessor.AttributeAction{Action: resourceprocessor.ActionInsert, Key: serviceNameAttribute, Value: inferred})
+func inferencePlatform() string {
+	if context.CurrentContext().KubernetesMode() != "" {
+		return platformKubernetes
 	}
-	return append(actions, resourceprocessor.AttributeAction{Action: resourceprocessor.ActionInsert, Key: serviceNameAttribute, Value: fallbackServiceName})
-}
-
-func inferredEC2ServiceName() string {
-	currentContext := context.CurrentContext()
-	if currentContext.KubernetesMode() != "" || currentContext.Mode() != config.ModeEC2 {
-		return ""
+	if context.CurrentContext().Mode() != config.ModeEC2 {
+		return platformOther
 	}
 	if ecsutil.GetECSUtilSingleton().IsECS() {
-		return ""
+		return platformECS
 	}
-	return EC2ServiceNameProvider()
+	return platformEC2
+}
+
+func profilesServiceNameActions(platform string) []resourceprocessor.AttributeAction {
+	actions := make([]resourceprocessor.AttributeAction, 0, 2)
+	switch platform {
+	case platformECS:
+		actions = append(actions, resourceprocessor.AttributeAction{Action: resourceprocessor.ActionInsert, Key: serviceNameAttribute, FromAttribute: ecsTaskFamilyAttribute})
+	case platformEC2:
+		if inferred := EC2ServiceNameProvider(); inferred != "" {
+			actions = append(actions, resourceprocessor.AttributeAction{Action: resourceprocessor.ActionInsert, Key: serviceNameAttribute, Value: inferred})
+		}
+	}
+	return append(actions, resourceprocessor.AttributeAction{Action: resourceprocessor.ActionInsert, Key: serviceNameAttribute, Value: fallbackServiceName})
 }

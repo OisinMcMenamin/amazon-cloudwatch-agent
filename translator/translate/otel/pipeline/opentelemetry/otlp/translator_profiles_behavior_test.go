@@ -123,6 +123,25 @@ func TestProfilesServiceNameBehavior(t *testing.T) {
 			want:       map[string]string{serviceNameAttribute: "unknown_service:java"},
 			wantAbsent: []string{"resource.opentelemetry.io/service.name", "app.kubernetes.io/name"},
 		},
+		"ECS/TaskFamilyNamesService": {
+			ecs:        true,
+			attributes: map[string]string{"aws.ecs.task.family": "payments-task"},
+			want:       map[string]string{serviceNameAttribute: "payments-task"},
+		},
+		"ECS/SenderBeatsTaskFamily": {
+			ecs:        true,
+			attributes: map[string]string{serviceNameAttribute: "payments", "aws.ecs.task.family": "payments-task"},
+			want:       map[string]string{serviceNameAttribute: "payments"},
+		},
+		"ECS/SDKUnknownServiceBeatsTaskFamily": {
+			ecs:        true,
+			attributes: map[string]string{serviceNameAttribute: "unknown_service:java", "aws.ecs.task.family": "payments-task"},
+			want:       map[string]string{serviceNameAttribute: "unknown_service:java"},
+		},
+		"ECS/Absent": {
+			ecs:  true,
+			want: map[string]string{serviceNameAttribute: "unknown_service"},
+		},
 		"EC2/InferredFromHost": {
 			ec2ServiceName: "web-tier",
 			want:           map[string]string{serviceNameAttribute: "web-tier"},
