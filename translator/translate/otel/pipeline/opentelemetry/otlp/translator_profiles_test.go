@@ -309,7 +309,17 @@ func TestProfilesIdentityTransformCarriesProfileStatements(t *testing.T) {
 			statements := identityCfg.ProfileStatements[0].Statements
 			assert.True(t, containsSubstring(statements, `set(resource.attributes["deployment.environment.name"]`))
 			assert.True(t, containsSubstring(statements, `set(resource.attributes["cloud.resource_id"]`))
-			assert.False(t, containsSubstring(statements, `resource.attributes["service.name"]`))
+			assert.False(t, containsSubstring(statements, `set(resource.attributes["service.name"], "unknown_service")`))
+			assert.False(t, containsSubstring(statements, `replace_pattern(resource.attributes["service.name"]`))
+			if testCase.k8sMode == "" {
+				assert.False(t, containsSubstring(statements, `resource.attributes["service.name"]`))
+			} else {
+				assert.True(t, containsSubstring(statements, `set(resource.attributes["service.name"], resource.attributes["resource.opentelemetry.io/service.name"]) where resource.attributes["service.name"] == nil`))
+				assert.True(t, containsSubstring(statements, `set(resource.attributes["service.name"], resource.attributes["k8s.pod.name"]) where resource.attributes["service.name"] == nil`))
+				assert.True(t, containsSubstring(statements, `set(resource.attributes["service.namespace"], resource.attributes["k8s.namespace.name"]) where resource.attributes["service.namespace"] == nil`))
+				assert.True(t, containsSubstring(statements, `delete_key(resource.attributes, "resource.opentelemetry.io/service.name")`))
+				assert.True(t, containsSubstring(statements, `delete_key(resource.attributes, "app.kubernetes.io/name")`))
+			}
 			assert.True(t, containsSubstring(identityCfg.MetricStatements[0].Statements, `set(resource.attributes["service.name"], "unknown_service")`))
 		})
 	}
@@ -383,7 +393,14 @@ func TestProfilesServiceNameOwnedByResourceProfiles(t *testing.T) {
 				switch c := cfg.(type) {
 				case *transformprocessor.Config:
 					for _, cs := range c.ProfileStatements {
-						assert.False(t, containsSubstring(cs.Statements, `resource.attributes["service.name"]`), id.String())
+						for _, statement := range cs.Statements {
+							if !strings.HasPrefix(statement, `set(resource.attributes["service.name"]`) {
+								assert.NotContains(t, statement, `resource.attributes["service.name"]`, id.String())
+								continue
+							}
+							assert.Contains(t, statement, `where resource.attributes["service.name"] == nil`, id.String())
+							assert.Regexp(t, `^set\(resource\.attributes\["service\.name"\], resource\.attributes\["[^"]+"\]\) where `, statement, id.String())
+						}
 					}
 				case *resourceprocessor.Config:
 					for _, action := range c.AttributesActions {

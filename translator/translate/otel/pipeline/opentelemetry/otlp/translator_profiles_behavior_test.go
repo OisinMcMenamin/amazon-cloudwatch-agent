@@ -34,13 +34,14 @@ import (
 )
 
 type profilesBehaviorCase struct {
-	mode        string
-	k8sMode     string
-	ecs         bool
-	attributes  map[string]string
-	want        map[string]string
-	wantPresent []string
-	wantAbsent  []string
+	mode           string
+	k8sMode        string
+	ecs            bool
+	ec2ServiceName string
+	attributes     map[string]string
+	want           map[string]string
+	wantPresent    []string
+	wantAbsent     []string
 }
 
 func TestProfilesServiceNameBehavior(t *testing.T) {
@@ -78,11 +79,63 @@ func TestProfilesServiceNameBehavior(t *testing.T) {
 				"resource.opentelemetry.io/service.version",
 			},
 		},
-		"EKS/PodMetadataDoesNotNameService": {
+		"EKS/AnnotationNamesService": {
+			k8sMode: config.ModeEKS,
+			attributes: map[string]string{
+				"resource.opentelemetry.io/service.name":      "payments",
+				"resource.opentelemetry.io/service.namespace": "shop-ns",
+				"app.kubernetes.io/name":                      "payments-label",
+				"k8s.deployment.name":                         "payments-deploy",
+				"k8s.namespace.name":                          "shop",
+			},
+			want:       map[string]string{serviceNameAttribute: "payments", "service.namespace": "shop-ns"},
+			wantAbsent: []string{"resource.opentelemetry.io/service.name", "resource.opentelemetry.io/service.namespace", "app.kubernetes.io/name"},
+		},
+		"EKS/InstanceLabelBeforeNameLabel": {
 			k8sMode:    config.ModeEKS,
-			attributes: map[string]string{"app.kubernetes.io/name": "payments"},
-			want:       map[string]string{serviceNameAttribute: "unknown_service"},
-			wantAbsent: []string{"app.kubernetes.io/name"},
+			attributes: map[string]string{"app.kubernetes.io/instance": "payments-1", "app.kubernetes.io/name": "payments", "k8s.namespace.name": "shop"},
+			want:       map[string]string{serviceNameAttribute: "payments-1", "service.namespace": "shop"},
+			wantAbsent: []string{"app.kubernetes.io/instance", "app.kubernetes.io/name"},
+		},
+		"EKS/NameLabelBeforeWorkload": {
+			k8sMode:    config.ModeEKS,
+			attributes: map[string]string{"app.kubernetes.io/name": "payments", "k8s.deployment.name": "payments-deploy"},
+			want:       map[string]string{serviceNameAttribute: "payments"},
+		},
+		"EKS/WorkloadBeforePod": {
+			k8sMode:    config.ModeEKS,
+			attributes: map[string]string{"k8s.statefulset.name": "payments-db", "k8s.pod.name": "payments-db-0"},
+			want:       map[string]string{serviceNameAttribute: "payments-db"},
+		},
+		"EKS/PodBeforeContainer": {
+			k8sMode:    config.ModeEKS,
+			attributes: map[string]string{"k8s.pod.name": "payments-db-0", "k8s.container.name": "app"},
+			want:       map[string]string{serviceNameAttribute: "payments-db-0"},
+		},
+		"EKS/SenderBeatsPodMetadata": {
+			k8sMode:    config.ModeEKS,
+			attributes: map[string]string{serviceNameAttribute: "checkout", "service.namespace": "front", "resource.opentelemetry.io/service.name": "payments", "k8s.namespace.name": "shop"},
+			want:       map[string]string{serviceNameAttribute: "checkout", "service.namespace": "front"},
+		},
+		"EKS/SDKUnknownServiceNotReInferred": {
+			k8sMode:    config.ModeEKS,
+			attributes: map[string]string{serviceNameAttribute: "unknown_service:java", "resource.opentelemetry.io/service.name": "payments", "app.kubernetes.io/name": "payments"},
+			want:       map[string]string{serviceNameAttribute: "unknown_service:java"},
+			wantAbsent: []string{"resource.opentelemetry.io/service.name", "app.kubernetes.io/name"},
+		},
+		"EC2/InferredFromHost": {
+			ec2ServiceName: "web-tier",
+			want:           map[string]string{serviceNameAttribute: "web-tier"},
+		},
+		"EC2/SenderBeatsInferred": {
+			ec2ServiceName: "web-tier",
+			attributes:     map[string]string{serviceNameAttribute: "payments"},
+			want:           map[string]string{serviceNameAttribute: "payments"},
+		},
+		"EC2/SDKUnknownServiceBeatsInferred": {
+			ec2ServiceName: "web-tier",
+			attributes:     map[string]string{serviceNameAttribute: "unknown_service:java"},
+			want:           map[string]string{serviceNameAttribute: "unknown_service:java"},
 		},
 	}
 	runProfilesBehaviorCases(t, testCases)
@@ -213,6 +266,7 @@ func runProfilesBehaviorCases(t *testing.T, testCases map[string]profilesBehavio
 		t.Run(name, func(t *testing.T) {
 			t.Cleanup(otlpreceiver.ClearConfigCache)
 			resetGlobalConfig(t, "us-east-1")
+			stubEC2ServiceName(t, testCase.ec2ServiceName)
 			setMode(t, testCase.mode)
 			setKubernetesMode(t, testCase.k8sMode)
 			setECS(t, testCase.ecs)
