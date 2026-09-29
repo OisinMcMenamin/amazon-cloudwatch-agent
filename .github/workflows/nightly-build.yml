@@ -15,7 +15,7 @@ jobs:
     with:
       BucketKey: "nightly-build/latest"
       PackageBucketKey: "nightly-build/latest"
-      TerraformAWSAssumeRole: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
+      TerraformAWSAssumeRole: ${{ vars.TERRAFORM_AWS_ASSUME_ROLE }}
       Bucket: ${{ vars.S3_INTEGRATION_BUCKET }}
 
   BuildAndUploadPackages:
@@ -28,7 +28,7 @@ jobs:
     with:
       BucketKey: "nightly-build/latest"
       PackageBucketKey: "nightly-build/latest"
-      TerraformAWSAssumeRole: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
+      TerraformAWSAssumeRole: ${{ vars.TERRAFORM_AWS_ASSUME_ROLE }}
       Bucket: ${{ vars.S3_INTEGRATION_BUCKET }}
 
   BuildDocker:

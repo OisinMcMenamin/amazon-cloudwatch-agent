@@ -26,13 +26,16 @@ on:
         default: "us-west-2"
       TerraformAWSAssumeRole:
         description: "Role to assume to upload artifacts"
-        required: true
+        required: false
         type: string
       Bucket:
         description: "Bucket to upload the artifacts to"
         required: true
         type: string
   workflow_call:
+    secrets:
+      TERRAFORM_AWS_ASSUME_ROLE:
+        required: false
     inputs:
       BucketKey:
         # e.g. s3://<bucket>/integration-test/binary/<SHA>"
@@ -52,7 +55,7 @@ on:
         default: "us-west-2"
       TerraformAWSAssumeRole:
         description: "Role to assume to upload artifacts"
-        required: true
+        required: false
         type: string
       Bucket:
         description: "Bucket to upload the artifacts to"
@@ -88,7 +91,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           mask-aws-account-id: true
-          role-to-assume: ${{ inputs.TerraformAWSAssumeRole }}
+          role-to-assume: ${{ inputs.TerraformAWSAssumeRole || secrets.TERRAFORM_AWS_ASSUME_ROLE }}
           aws-region: ${{ inputs.Region }}
 
       - name: Cache binaries

@@ -32,6 +32,8 @@ on:
       local_stack_host_name:
         value: ${{ jobs.StartLocalStack.outputs.local_stack_host_name }}
     secrets:
+      TERRAFORM_AWS_ASSUME_ROLE:
+        required: false
       AWS_PRIVATE_KEY:
         required: false
       KEY_NAME:
@@ -60,7 +62,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           mask-aws-account-id: true
-          role-to-assume: ${{ inputs.terraform_assume_role }}
+          role-to-assume: ${{ inputs.terraform_assume_role || secrets.TERRAFORM_AWS_ASSUME_ROLE }}
           aws-region: ${{ inputs.region }}
 
       - name: Echo Localstack Config
