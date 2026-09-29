@@ -44,5 +44,4 @@ jobs:
     with:
       BucketKey: "integration-test/binary/${{ github.sha }}"
       PackageBucketKey: "integration-test/packaging/${{ github.sha }}"
-      TerraformAWSAssumeRole: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
       Bucket: ${{ vars.S3_INTEGRATION_BUCKET }}

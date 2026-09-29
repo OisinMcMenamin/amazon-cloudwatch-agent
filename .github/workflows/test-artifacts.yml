@@ -382,7 +382,6 @@ jobs:
       region: us-west-2
       test_repo_name: ${{ needs.OutputEnvVariables.outputs.CWA_GITHUB_TEST_REPO_NAME }}
       test_repo_branch: ${{ needs.OutputEnvVariables.outputs.CWA_GITHUB_TEST_REPO_BRANCH }}
-      terraform_assume_role: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
       test_repo_url: ${{ needs.OutputEnvVariables.outputs.CWA_GITHUB_TEST_REPO_URL }}
       github_sha: ${{ inputs.build_id }}
       s3_integration_bucket: ${{ vars.S3_INTEGRATION_BUCKET }}
@@ -632,7 +631,6 @@ jobs:
       test_repo_branch: ${{ needs.OutputEnvVariables.outputs.CWA_GITHUB_TEST_REPO_BRANCH }}
       localstack_host: ${{ needs.StartLocalStack.outputs.local_stack_host_name }}
       region: us-west-2
-      terraform_assume_role: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
       s3_integration_bucket: ${{ vars.S3_INTEGRATION_BUCKET }}
       is_selinux_test: false
       is_onprem_test: false
@@ -653,7 +651,6 @@ jobs:
       test_repo_branch: ${{ needs.OutputEnvVariables.outputs.CWA_GITHUB_TEST_REPO_BRANCH }}
       localstack_host: ${{ needs.StartLocalStack.outputs.local_stack_host_name }}
       region: us-west-2
-      terraform_assume_role: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
       s3_integration_bucket: ${{ vars.S3_INTEGRATION_BUCKET }}
       is_selinux_test: false
       is_onprem_test: false
@@ -674,7 +671,6 @@ jobs:
       test_repo_branch: ${{ needs.OutputEnvVariables.outputs.CWA_GITHUB_TEST_REPO_BRANCH }}
       localstack_host: ${{ needs.StartLocalStack.outputs.local_stack_host_name }}
       region: us-west-2
-      terraform_assume_role: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
       s3_integration_bucket: ${{ vars.S3_INTEGRATION_BUCKET }}
       is_selinux_test: false
       is_onprem_test: false
@@ -695,7 +691,6 @@ jobs:
       test_repo_branch: ${{ needs.OutputEnvVariables.outputs.CWA_GITHUB_TEST_REPO_BRANCH }}
       localstack_host: ${{ needs.StartLocalStack.outputs.local_stack_host_name }}
       region: us-west-2
-      terraform_assume_role: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
       s3_integration_bucket: ${{ vars.S3_INTEGRATION_BUCKET }}
       is_selinux_test: false
       is_onprem_test: false
@@ -716,7 +711,6 @@ jobs:
       test_repo_branch: ${{ needs.OutputEnvVariables.outputs.CWA_GITHUB_TEST_REPO_BRANCH }}
       localstack_host: ${{ needs.StartLocalStack.outputs.local_stack_host_name }}
       region: us-west-2
-      terraform_assume_role: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
       s3_integration_bucket: ${{ vars.S3_INTEGRATION_BUCKET }}
       is_selinux_test: false
       is_onprem_test: false
@@ -736,7 +730,6 @@ jobs:
       test_repo_branch: ${{ needs.OutputEnvVariables.outputs.CWA_GITHUB_TEST_REPO_BRANCH }}
       localstack_host: ${{needs.StartLocalStack.outputs.local_stack_host_name}}
       region: us-west-2
-      terraform_assume_role: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
       s3_integration_bucket: ${{ vars.S3_INTEGRATION_BUCKET }}
       is_selinux_test: false
       is_onprem_test: true
@@ -797,7 +790,6 @@ jobs:
       test_repo_branch: ${{ needs.OutputEnvVariables.outputs.CWA_GITHUB_TEST_REPO_BRANCH }}
       localstack_host: ${{needs.StartLocalStack.outputs.local_stack_host_name}}
       region: us-west-2
-      terraform_assume_role: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
       s3_integration_bucket: ${{ vars.S3_INTEGRATION_BUCKET }}
       is_selinux_test: true
 
@@ -1026,7 +1018,6 @@ jobs:
       region: us-west-2
       test_repo_name: ${{ needs.OutputEnvVariables.outputs.CWA_GITHUB_TEST_REPO_NAME }}
       test_repo_branch: ${{ needs.OutputEnvVariables.outputs.CWA_GITHUB_TEST_REPO_BRANCH }}
-      terraform_assume_role: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
       github_sha: ${{inputs.build_id}}
       s3_integration_bucket: ${{ vars.S3_INTEGRATION_BUCKET }}
 
