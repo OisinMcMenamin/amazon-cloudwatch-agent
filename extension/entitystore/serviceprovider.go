@@ -286,17 +286,10 @@ func (s *serviceprovider) scrapeImdsServiceNameAndASG() error {
 
 	// This will check whether the tags contains SERVICE, APPLICATION, APP, in that order (case insensitive)
 	lowerTagKeys := toLowerKeyMap(tagKeys)
-	for _, potentialServiceProviderKey := range serviceProviderPriorities {
-		if originalCaseKey, exists := lowerTagKeys[potentialServiceProviderKey]; exists {
-			serviceName, err := s.metadataProvider.InstanceTagValue(context.Background(), originalCaseKey)
-			if err != nil {
-				continue
-			}
-			s.mutex.Lock()
-			s.imdsServiceName = serviceName
-			s.mutex.Unlock()
-			break
-		}
+	if serviceName := ServiceNameFromInstanceTags(context.Background(), s.metadataProvider, tagKeys); serviceName != "" {
+		s.mutex.Lock()
+		s.imdsServiceName = serviceName
+		s.mutex.Unlock()
 	}
 	// case sensitive
 	if originalCaseKey := lowerTagKeys[strings.ToLower(ec2tagger.Ec2InstanceTagKeyASG)]; originalCaseKey == ec2tagger.Ec2InstanceTagKeyASG {
@@ -314,6 +307,32 @@ func (s *serviceprovider) scrapeImdsServiceNameAndASG() error {
 		s.logger.Debug("AutoScalingGroup name not found through IMDS")
 	}
 	return nil
+}
+
+func ServiceNameFromInstanceTags(ctx context.Context, provider ec2metadataprovider.MetadataProvider, tagKeys []string) string {
+	lowerTagKeys := toLowerKeyMap(tagKeys)
+	for _, potentialServiceProviderKey := range serviceProviderPriorities {
+		originalCaseKey, exists := lowerTagKeys[potentialServiceProviderKey]
+		if !exists {
+			continue
+		}
+		if serviceName, err := provider.InstanceTagValue(ctx, originalCaseKey); err == nil && strings.TrimSpace(serviceName) != "" {
+			return strings.TrimSpace(serviceName)
+		}
+	}
+	return ""
+}
+
+func ServiceNameFromIMDS(ctx context.Context, provider ec2metadataprovider.MetadataProvider) string {
+	if tagKeys, err := provider.InstanceTags(ctx); err == nil {
+		if serviceName := ServiceNameFromInstanceTags(ctx, provider, tagKeys); serviceName != "" {
+			return serviceName
+		}
+	}
+	if iamRole, err := provider.ClientIAMRole(ctx); err == nil && strings.TrimSpace(iamRole) != "" {
+		return strings.TrimSpace(iamRole)
+	}
+	return ""
 }
 
 func toLowerKeyMap(values []string) map[string]string {

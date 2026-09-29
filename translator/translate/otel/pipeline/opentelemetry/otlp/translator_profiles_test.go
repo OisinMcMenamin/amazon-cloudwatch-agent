@@ -235,20 +235,52 @@ func TestProfilesExporterEndpoint(t *testing.T) {
 func TestProfilesServiceNameFallbackStamped(t *testing.T) {
 	t.Cleanup(otlpreceiver.ClearConfigCache)
 	resetGlobalConfig(t, "us-east-1")
-	conf := confmap.NewFromStringMap(otlpSectionConf)
-	got, err := (&profilesPipelineTranslator{}).Translate(conf)
-	require.NoError(t, err)
-	processorTranslator, ok := got.Processors.Get(component.MustNewIDWithName("resource", "profiles"))
-	require.True(t, ok)
-	cfg, err := processorTranslator.Translate(conf)
-	require.NoError(t, err)
-	processorCfg, ok := cfg.(*resourceprocessor.Config)
-	require.True(t, ok)
-	require.Len(t, processorCfg.AttributesActions, 1)
-	action := processorCfg.AttributesActions[0]
-	assert.Equal(t, "service.name", action.Key)
-	assert.EqualValues(t, "insert", action.Action)
-	assert.Equal(t, "unknown_service", action.Value)
+	cfg := profilesResourceProcessorConfig(t, confmap.NewFromStringMap(otlpSectionConf))
+	require.Len(t, cfg.AttributesActions, 1)
+	assert.Equal(t, "service.name", cfg.AttributesActions[0].Key)
+	assert.EqualValues(t, "insert", cfg.AttributesActions[0].Action)
+	assert.Equal(t, "unknown_service", cfg.AttributesActions[0].Value)
+}
+
+func TestProfilesServiceNameInferredOnEC2(t *testing.T) {
+	t.Cleanup(otlpreceiver.ClearConfigCache)
+	resetGlobalConfig(t, "us-east-1")
+	stubEC2ServiceName(t, "my-ec2-service")
+	cfg := profilesResourceProcessorConfig(t, confmap.NewFromStringMap(otlpSectionConf))
+	require.Len(t, cfg.AttributesActions, 2)
+	assert.Equal(t, "service.name", cfg.AttributesActions[0].Key)
+	assert.EqualValues(t, "insert", cfg.AttributesActions[0].Action)
+	assert.Equal(t, "my-ec2-service", cfg.AttributesActions[0].Value)
+	assert.Equal(t, "service.name", cfg.AttributesActions[1].Key)
+	assert.EqualValues(t, "insert", cfg.AttributesActions[1].Action)
+	assert.Equal(t, "unknown_service", cfg.AttributesActions[1].Value)
+}
+
+func TestProfilesServiceNameNotInferredOffEC2(t *testing.T) {
+	testCases := map[string]struct {
+		mode    string
+		k8sMode string
+		ecs     bool
+	}{
+		"OnPrem":     {mode: config.ModeOnPrem},
+		"Kubernetes": {mode: config.ModeEC2, k8sMode: config.ModeEKS},
+		"ECS":        {mode: config.ModeEC2, ecs: true},
+	}
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			t.Cleanup(otlpreceiver.ClearConfigCache)
+			resetGlobalConfig(t, "us-east-1")
+			stubEC2ServiceName(t, "should-not-be-used")
+			context.ResetContext()
+			t.Cleanup(context.ResetContext)
+			context.CurrentContext().SetMode(testCase.mode)
+			setKubernetesMode(t, testCase.k8sMode)
+			setECS(t, testCase.ecs)
+			cfg := profilesResourceProcessorConfig(t, confmap.NewFromStringMap(otlpSectionConf))
+			require.Len(t, cfg.AttributesActions, 1)
+			assert.Equal(t, "unknown_service", cfg.AttributesActions[0].Value)
+		})
+	}
 }
 
 func TestProfilesIdentityTransformCarriesProfileStatements(t *testing.T) {
@@ -427,4 +459,25 @@ func resetGlobalConfig(t *testing.T, region string) {
 		agent.Global_Config = previous
 	})
 	agent.Global_Config = agent.Agent{Region: region}
+	stubEC2ServiceName(t, "")
+}
+
+func stubEC2ServiceName(t *testing.T, name string) {
+	t.Helper()
+	previous := EC2ServiceNameProvider
+	t.Cleanup(func() { EC2ServiceNameProvider = previous })
+	EC2ServiceNameProvider = func() string { return name }
+}
+
+func profilesResourceProcessorConfig(t *testing.T, conf *confmap.Conf) *resourceprocessor.Config {
+	t.Helper()
+	got, err := (&profilesPipelineTranslator{}).Translate(conf)
+	require.NoError(t, err)
+	processorTranslator, ok := got.Processors.Get(component.MustNewIDWithName("resource", "profiles"))
+	require.True(t, ok)
+	cfg, err := processorTranslator.Translate(conf)
+	require.NoError(t, err)
+	processorCfg, ok := cfg.(*resourceprocessor.Config)
+	require.True(t, ok)
+	return processorCfg
 }

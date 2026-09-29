@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/collector/pipeline"
 	"go.opentelemetry.io/collector/pipeline/xpipeline"
 
+	"github.com/aws/amazon-cloudwatch-agent/translator/config"
 	"github.com/aws/amazon-cloudwatch-agent/translator/context"
 	"github.com/aws/amazon-cloudwatch-agent/translator/translate/agent"
 	"github.com/aws/amazon-cloudwatch-agent/translator/translate/otel/common"
@@ -89,7 +90,20 @@ func (t *profilesPipelineTranslator) Translate(conf *confmap.Conf) (*common.Comp
 }
 
 func profilesServiceNameActions() []resourceprocessor.AttributeAction {
-	return []resourceprocessor.AttributeAction{
-		{Action: resourceprocessor.ActionInsert, Key: serviceNameAttribute, Value: fallbackServiceName},
+	actions := make([]resourceprocessor.AttributeAction, 0, 2)
+	if inferred := inferredEC2ServiceName(); inferred != "" {
+		actions = append(actions, resourceprocessor.AttributeAction{Action: resourceprocessor.ActionInsert, Key: serviceNameAttribute, Value: inferred})
 	}
+	return append(actions, resourceprocessor.AttributeAction{Action: resourceprocessor.ActionInsert, Key: serviceNameAttribute, Value: fallbackServiceName})
+}
+
+func inferredEC2ServiceName() string {
+	currentContext := context.CurrentContext()
+	if currentContext.KubernetesMode() != "" || currentContext.Mode() != config.ModeEC2 {
+		return ""
+	}
+	if ecsutil.GetECSUtilSingleton().IsECS() {
+		return ""
+	}
+	return EC2ServiceNameProvider()
 }
