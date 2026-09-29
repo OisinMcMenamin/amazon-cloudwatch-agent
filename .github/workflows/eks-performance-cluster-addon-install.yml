@@ -58,7 +58,7 @@ env:
   # Cluster environment variables
   AWS_REGION: ${{ inputs.region || 'us-west-2' }}
   CLUSTER_NAME: ${{ inputs.cluster_name || 'eks-performance' }}
-  TERRAFORM_AWS_ASSUME_ROLE: ${{ inputs.terraform_assume_role || secrets.TERRAFORM_AWS_ASSUME_ROLE }}
+  TERRAFORM_AWS_ASSUME_ROLE: ${{ inputs.terraform_assume_role || vars.TERRAFORM_AWS_ASSUME_ROLE }}
   TERRAFORM_AWS_ASSUME_ROLE_DURATION: 3600  # 1 hour duration
 
   # ECR repository environment variables
