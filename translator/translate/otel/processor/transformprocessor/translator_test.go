@@ -474,17 +474,6 @@ var identityProfileDroppedStatements = map[string][]string{
 		`set(resource.attributes["service.name"], "unknown_service") where resource.attributes["service.name"] == nil`,
 	},
 	translatorconfig.ModeEKS: {
-		`set(resource.attributes["service.namespace"], resource.attributes["resource.opentelemetry.io/service.namespace"]) where resource.attributes["service.namespace"] == nil and resource.attributes["resource.opentelemetry.io/service.namespace"] != nil`,
-		`set(resource.attributes["service.namespace"], resource.attributes["k8s.namespace.name"]) where resource.attributes["service.namespace"] == nil and resource.attributes["k8s.namespace.name"] != nil`,
-		`set(resource.attributes["service.name"], resource.attributes["resource.opentelemetry.io/service.name"]) where resource.attributes["service.name"] == nil and resource.attributes["resource.opentelemetry.io/service.name"] != nil`,
-		`set(resource.attributes["service.name"], resource.attributes["app.kubernetes.io/instance"]) where resource.attributes["service.name"] == nil and resource.attributes["app.kubernetes.io/instance"] != nil`,
-		`set(resource.attributes["service.name"], resource.attributes["app.kubernetes.io/name"]) where resource.attributes["service.name"] == nil and resource.attributes["app.kubernetes.io/name"] != nil`,
-		`set(resource.attributes["service.name"], resource.attributes["k8s.deployment.name"]) where resource.attributes["service.name"] == nil and resource.attributes["k8s.deployment.name"] != nil`,
-		`set(resource.attributes["service.name"], resource.attributes["k8s.replicaset.name"]) where resource.attributes["service.name"] == nil and resource.attributes["k8s.replicaset.name"] != nil`,
-		`set(resource.attributes["service.name"], resource.attributes["k8s.statefulset.name"]) where resource.attributes["service.name"] == nil and resource.attributes["k8s.statefulset.name"] != nil`,
-		`set(resource.attributes["service.name"], resource.attributes["k8s.job.name"]) where resource.attributes["service.name"] == nil and resource.attributes["k8s.job.name"] != nil`,
-		`set(resource.attributes["service.name"], resource.attributes["k8s.pod.name"]) where resource.attributes["service.name"] == nil and resource.attributes["k8s.pod.name"] != nil`,
-		`set(resource.attributes["service.name"], resource.attributes["k8s.container.name"]) where resource.attributes["service.name"] == nil and resource.attributes["k8s.container.name"] != nil`,
 		`set(resource.attributes["service.name"], "unknown_service") where resource.attributes["service.name"] == nil and resource.attributes["_tmp.log_type"] != "host"`,
 		`set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.deployment.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.deployment.name"] != nil`,
 		`set(resource.attributes["k8s.workload.type"], "Deployment") where resource.attributes["k8s.deployment.name"] != nil and resource.attributes["k8s.workload.type"] == nil`,
@@ -558,8 +547,13 @@ func assertIdentityProfileStatements(t *testing.T, actualCfg *transformprocessor
 		assert.Contains(t, actualCfg.MetricStatements[0].Statements, statement)
 	}
 	for _, statement := range actualCfg.ProfileStatements[0].Statements {
-		assert.NotContains(t, statement, `set(resource.attributes["service.name"]`)
 		assert.NotContains(t, statement, `replace_pattern(resource.attributes["service.name"]`)
+		if !strings.HasPrefix(statement, `set(resource.attributes["service.name"]`) {
+			assert.NotContains(t, statement, `resource.attributes["service.name"],`)
+			continue
+		}
+		assert.Contains(t, statement, `where resource.attributes["service.name"] == nil`)
+		assert.Regexp(t, `^set\(resource\.attributes\["service\.name"\], resource\.attributes\["[^"]+"\]\) where `, statement)
 	}
 	require.NoError(t, actualCfg.Validate())
 }
