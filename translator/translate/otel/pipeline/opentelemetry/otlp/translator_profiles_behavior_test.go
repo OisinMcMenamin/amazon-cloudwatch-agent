@@ -279,6 +279,30 @@ func TestProfilesEnrichmentBehavior(t *testing.T) {
 	runProfilesBehaviorCases(t, testCases)
 }
 
+func TestProfilesScopeAttributesBehavior(t *testing.T) {
+	t.Cleanup(otlpreceiver.ClearConfigCache)
+	resetGlobalConfig(t, "us-east-1")
+	conf := confmap.NewFromStringMap(otlpSectionConf)
+	got, err := (&profilesPipelineTranslator{}).Translate(conf)
+	require.NoError(t, err)
+
+	profiles := pprofile.NewProfiles()
+	scope := profiles.ResourceProfiles().AppendEmpty().ScopeProfiles().AppendEmpty().Scope()
+	scope.SetName("go.opentelemetry.io/ebpf-profiler")
+
+	sink := new(consumertest.ProfilesSink)
+	otlpScope := newProfilesProcessor(t, transformprocessor.NewFactory(), loadProcessorsAsAgent(t, got, conf), "transform", "otlp_scope", sink)
+	require.NoError(t, otlpScope.ConsumeProfiles(context.Background(), profiles))
+
+	require.Len(t, sink.AllProfiles(), 1)
+	attributes := sink.AllProfiles()[0].ResourceProfiles().At(0).ScopeProfiles().At(0).Scope().Attributes()
+	for key, want := range map[string]string{"cloudwatch.source": "cloudwatch-agent", "cloudwatch.solution": "otel-otlp"} {
+		value, ok := attributes.Get(key)
+		require.True(t, ok, key)
+		assert.Equal(t, want, value.Str(), key)
+	}
+}
+
 func runProfilesBehaviorCases(t *testing.T, testCases map[string]profilesBehaviorCase) {
 	t.Helper()
 	for name, testCase := range testCases {
