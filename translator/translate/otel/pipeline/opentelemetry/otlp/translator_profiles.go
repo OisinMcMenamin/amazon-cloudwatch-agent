@@ -64,6 +64,7 @@ func (t *profilesPipelineTranslator) Translate(conf *confmap.Conf) (*common.Comp
 	platform := inferencePlatform()
 	processors := common.NewTranslatorMap[component.Config, component.ID]()
 	extensions := common.NewTranslatorMap[component.Config, component.ID](sigv4Ext, agentHealthExt)
+	processors.Set(newOtlpScopeTranslator())
 	if resourceAttrs := resourceprocessor.NewResourceAttributesTranslator(conf); resourceAttrs != nil {
 		processors.Set(resourceAttrs)
 	}
