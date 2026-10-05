@@ -55,10 +55,7 @@ func (t *otlpPipelineTranslator) Translate(conf *confmap.Conf) (*common.Componen
 	fwdConnector := forward.NewTranslator(common.OpenTelemetryKey)
 
 	processors := common.NewTranslatorMap[component.Config, component.ID]()
-	processors.Set(transformprocessor.NewTranslatorWithName("otlp_scope",
-		transformprocessor.WithErrorMode("ignore"),
-		transformprocessor.WithScopeStatements(common.ScopeStatementsForSolution("otel-otlp")),
-	))
+	processors.Set(newOtlpScopeTranslator())
 	if t.signal == pipeline.SignalLogs {
 		processors.Set(transformprocessor.NewTranslatorWithName("otlp_log_source",
 			transformprocessor.WithLogResourceStatements([]string{
@@ -74,4 +71,11 @@ func (t *otlpPipelineTranslator) Translate(conf *confmap.Conf) (*common.Componen
 		Extensions: common.NewTranslatorMap[component.Config, component.ID](),
 		Connectors: common.NewTranslatorMap[component.Config, component.ID](fwdConnector),
 	}, nil
+}
+
+func newOtlpScopeTranslator() common.ComponentTranslator {
+	return transformprocessor.NewTranslatorWithName("otlp_scope",
+		transformprocessor.WithErrorMode("ignore"),
+		transformprocessor.WithScopeStatements(common.ScopeStatementsForSolution("otel-otlp")),
+	)
 }

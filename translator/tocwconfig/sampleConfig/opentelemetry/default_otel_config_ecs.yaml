@@ -1390,7 +1390,12 @@ processors:
               statements:
                 - set(scope.attributes["cloudwatch.source"], "cloudwatch-agent")
                 - set(scope.attributes["cloudwatch.solution"], "otel-otlp")
-        profile_statements: []
+        profile_statements:
+            - context: scope
+              error_mode: ignore
+              statements:
+                - set(scope.attributes["cloudwatch.source"], "cloudwatch-agent")
+                - set(scope.attributes["cloudwatch.solution"], "otel-otlp")
         trace_statements:
             - context: scope
               error_mode: ignore
@@ -1478,6 +1483,7 @@ service:
             exporters:
                 - otlp_http/profiles
             processors:
+                - transform/otlp_scope
                 - resourcedetection/profiles
                 - transform/identity
                 - resource/profiles
