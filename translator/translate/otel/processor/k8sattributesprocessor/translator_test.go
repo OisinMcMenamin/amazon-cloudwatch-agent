@@ -112,10 +112,13 @@ func TestTranslateWithPodIPAssociation(t *testing.T) {
 	k8sCfg, ok := cfg.(*k8sattributesprocessor.Config)
 	require.True(t, ok)
 
-	require.Len(t, k8sCfg.Association, 1)
+	require.Len(t, k8sCfg.Association, 2)
 	require.Len(t, k8sCfg.Association[0].Sources, 1)
 	assert.Equal(t, "resource_attribute", k8sCfg.Association[0].Sources[0].From)
-	assert.Equal(t, "k8s.pod.ip", k8sCfg.Association[0].Sources[0].Name)
+	assert.Equal(t, "container.id", k8sCfg.Association[0].Sources[0].Name)
+	require.Len(t, k8sCfg.Association[1].Sources, 1)
+	assert.Equal(t, "resource_attribute", k8sCfg.Association[1].Sources[0].From)
+	assert.Equal(t, "k8s.pod.ip", k8sCfg.Association[1].Sources[0].Name)
 	for _, assoc := range k8sCfg.Association {
 		for _, src := range assoc.Sources {
 			assert.NotEqual(t, "connection", src.From)

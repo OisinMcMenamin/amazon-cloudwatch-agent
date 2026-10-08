@@ -809,6 +809,9 @@ processors:
         pod_association:
             - sources:
                 - from: resource_attribute
+                  name: container.id
+            - sources:
+                - from: resource_attribute
                   name: k8s.pod.ip
         wait_for_metadata: false
         wait_for_metadata_timeout: 10s
