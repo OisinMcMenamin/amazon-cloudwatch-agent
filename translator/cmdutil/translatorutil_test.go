@@ -429,6 +429,10 @@ func TestOpenTelemetryPrometheusSchemaValidation(t *testing.T) {
 
 func TestOpenTelemetryOtlpSchemaValidation(t *testing.T) {
 	checkIfSchemaValidateAsExpected(t, "../../translator/config/sampleSchema/opentelemetry/validOpenTelemetryOtlp.json", true, map[string]int{})
+	checkIfSchemaValidateAsExpected(t, "../../translator/config/sampleSchema/opentelemetry/invalidOpenTelemetryOtlpTls.json", false, map[string]int{
+		"string_gte":   1,
+		"invalid_type": 1,
+	})
 }
 
 func TestOpenTelemetryResourceAttributesSchemaValidation(t *testing.T) {

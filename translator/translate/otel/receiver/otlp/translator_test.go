@@ -363,3 +363,64 @@ func TestTranslateToEndpointConfig_OnlyHTTP(t *testing.T) {
 	assert.Equal(t, http, configs[0].protocol)
 	assert.Equal(t, "http-only:4318", configs[0].endpoint)
 }
+
+func TestTranslateToEndpointConfig_OpenTelemetryTLS(t *testing.T) {
+	ClearConfigCache()
+	configKey := common.ConfigKey(common.OpenTelemetryKey, common.CollectKey, common.OtlpKey)
+	conf := confmap.NewFromStringMap(map[string]any{
+		"opentelemetry": map[string]any{
+			"collect": map[string]any{
+				"otlp": map[string]any{
+					"grpc_endpoint": "127.0.0.1:4317",
+					"http_endpoint": "127.0.0.1:4318",
+					"tls": map[string]any{
+						"cert_file": "/path/to/cert.pem",
+						"key_file":  "/path/to/key.pem",
+					},
+				},
+			},
+		},
+	})
+
+	configs := translateToEndpointConfig(conf, "otlp", configKey, -1)
+	require.Len(t, configs, 2)
+	for _, epConfig := range configs {
+		assert.Equal(t, "/path/to/cert.pem", epConfig.certFile)
+		assert.Equal(t, "/path/to/key.pem", epConfig.keyFile)
+	}
+
+	got, err := NewTranslator(configs[0]).Translate(conf)
+	require.NoError(t, err)
+	grpcTLS := got.(*otlpreceiver.Config).GRPC.Get().TLS.Get()
+	assert.Equal(t, "/path/to/cert.pem", grpcTLS.CertFile)
+	assert.Equal(t, "/path/to/key.pem", grpcTLS.KeyFile)
+
+	got, err = NewTranslator(configs[1]).Translate(conf)
+	require.NoError(t, err)
+	httpTLS := got.(*otlpreceiver.Config).HTTP.Get().ServerConfig.TLS.Get()
+	assert.Equal(t, "/path/to/cert.pem", httpTLS.CertFile)
+	assert.Equal(t, "/path/to/key.pem", httpTLS.KeyFile)
+}
+
+func TestTranslateToEndpointConfig_HalfTLS(t *testing.T) {
+	for name, tls := range map[string]map[string]any{
+		"cert_only": {"cert_file": "/path/to/cert.pem"},
+		"key_only":  {"key_file": "/path/to/key.pem"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			conf := confmap.NewFromStringMap(map[string]any{
+				"otlp": map[string]any{
+					"http_endpoint": "127.0.0.1:4318",
+					"tls":           tls,
+				},
+			})
+
+			configs := translateToEndpointConfig(conf, "regular", "otlp", -1)
+			require.Len(t, configs, 1)
+			assert.EqualError(t, configs[0].err, "otlp: tls requires both cert_file and key_file")
+
+			_, err := NewTranslator(configs[0]).Translate(conf)
+			assert.EqualError(t, err, "otlp: tls requires both cert_file and key_file")
+		})
+	}
+}

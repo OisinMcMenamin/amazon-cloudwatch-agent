@@ -853,6 +853,9 @@ receivers:
                     enforcement_policy: null
                     server_parameters: null
                 read_buffer_size: 524288
+                tls:
+                    cert_file: /path/to/cert.pem
+                    key_file: /path/to/key.pem
                 transport: tcp
     otlp/http_127_0_0_1_4318:
         protocols:
@@ -864,7 +867,9 @@ receivers:
                 logs_url_path: /v1/logs
                 metrics_url_path: /v1/metrics
                 read_header_timeout: 0s
-                tls: null
+                tls:
+                    cert_file: /path/to/cert.pem
+                    key_file: /path/to/key.pem
                 traces_url_path: /v1/traces
                 transport: tcp
                 write_timeout: 0s
