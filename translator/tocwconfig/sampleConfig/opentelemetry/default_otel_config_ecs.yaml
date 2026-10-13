@@ -236,13 +236,6 @@ processors:
               from_context: ""
               key: service.name
               pattern: ""
-            - action: insert
-              converted_type: ""
-              from_attribute: ""
-              from_context: ""
-              key: service.name
-              pattern: ""
-              value: unknown_service
     resourcedetection/opentelemetry:
         akamai:
             resource_attributes:
@@ -1315,6 +1308,7 @@ processors:
             - context: resource
               error_mode: ignore
               statements:
+                - set(resource.attributes["service.name"], "unknown_service") where resource.attributes["service.name"] == nil
                 - set(resource.attributes["cloud.resource_id"], resource.attributes["aws.ecs.task.arn"]) where resource.attributes["cloud.resource_id"] == nil and resource.attributes["aws.ecs.task.arn"] != nil
                 - set(resource.attributes["aws.ecs.cluster.name"], resource.attributes["aws.ecs.cluster.arn"]) where resource.attributes["aws.ecs.cluster.name"] == nil and resource.attributes["aws.ecs.cluster.arn"] != nil
                 - replace_pattern(resource.attributes["aws.ecs.cluster.name"], "^.*/", "") where resource.attributes["aws.ecs.cluster.name"] != nil
@@ -1485,8 +1479,8 @@ service:
             processors:
                 - transform/otlp_scope
                 - resourcedetection/profiles
-                - transform/identity
                 - resource/profiles
+                - transform/identity
             receivers:
                 - otlp/grpc_127_0_0_1_4317
                 - otlp/http_127_0_0_1_4318

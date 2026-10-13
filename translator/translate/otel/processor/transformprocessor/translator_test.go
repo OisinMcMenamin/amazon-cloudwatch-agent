@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -462,51 +461,15 @@ func TestProfileResourceStatementsOnly(t *testing.T) {
 	require.NoError(t, actualCfg.Validate())
 }
 
-var identityProfileDroppedStatements = map[string][]string{
-	translatorconfig.ModeEC2: {
-		`set(resource.attributes["service.name"], "unknown_service") where resource.attributes["service.name"] == nil`,
-	},
-	translatorconfig.ModeECS: {
-		`set(resource.attributes["service.name"], "unknown_service") where resource.attributes["service.name"] == nil`,
-	},
-	translatorconfig.ModeAzureVM: {
-		`set(resource.attributes["service.name"], "unknown_service") where resource.attributes["service.name"] == nil`,
-	},
-	translatorconfig.ModeGCE: {
-		`set(resource.attributes["service.name"], "unknown_service") where resource.attributes["service.name"] == nil`,
-	},
-	translatorconfig.ModeEKS: {
-		`set(resource.attributes["service.name"], "unknown_service") where resource.attributes["service.name"] == nil and resource.attributes["_tmp.log_type"] != "host"`,
-		`set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.deployment.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.deployment.name"] != nil`,
-		`set(resource.attributes["k8s.workload.type"], "Deployment") where resource.attributes["k8s.deployment.name"] != nil and resource.attributes["k8s.workload.type"] == nil`,
-		`set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.statefulset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.statefulset.name"] != nil`,
-		`set(resource.attributes["k8s.workload.type"], "StatefulSet") where resource.attributes["k8s.statefulset.name"] != nil and resource.attributes["k8s.workload.type"] == nil`,
-		`set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.daemonset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.daemonset.name"] != nil`,
-		`set(resource.attributes["k8s.workload.type"], "DaemonSet") where resource.attributes["k8s.daemonset.name"] != nil and resource.attributes["k8s.workload.type"] == nil`,
-		`set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.job.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.job.name"] != nil`,
-		`set(resource.attributes["k8s.workload.type"], "Job") where resource.attributes["k8s.job.name"] != nil and resource.attributes["k8s.workload.type"] == nil`,
-		`set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.cronjob.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.cronjob.name"] != nil`,
-		`set(resource.attributes["k8s.workload.type"], "CronJob") where resource.attributes["k8s.cronjob.name"] != nil and resource.attributes["k8s.workload.type"] == nil`,
-		`set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.replicaset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.replicaset.name"] != nil`,
-		`set(resource.attributes["k8s.workload.type"], "ReplicaSet") where resource.attributes["k8s.replicaset.name"] != nil and resource.attributes["k8s.workload.type"] == nil`,
-		`set(resource.attributes["service.instance.id"], resource.attributes["resource.opentelemetry.io/service.instance.id"]) where resource.attributes["service.instance.id"] == nil and resource.attributes["resource.opentelemetry.io/service.instance.id"] != nil`,
-		`set(resource.attributes["service.instance.id"], Concat([resource.attributes["k8s.namespace.name"], resource.attributes["k8s.pod.name"], resource.attributes["k8s.container.name"]], "/")) where resource.attributes["service.instance.id"] == nil and resource.attributes["k8s.pod.name"] != nil`,
-		`set(resource.attributes["service.version"], resource.attributes["resource.opentelemetry.io/service.version"]) where resource.attributes["service.version"] == nil and resource.attributes["resource.opentelemetry.io/service.version"] != nil`,
-		`set(resource.attributes["service.version"], resource.attributes["app.kubernetes.io/version"]) where resource.attributes["service.version"] == nil and resource.attributes["app.kubernetes.io/version"] != nil`,
-		`delete_key(resource.attributes, "_tmp.log_type")`,
-	},
-}
-
 func TestIdentityProfileStatements(t *testing.T) {
 	testCases := map[string]struct {
 		mode    string
 		k8sMode string
-		dropped []string
 	}{
-		"EC2":     {mode: translatorconfig.ModeEC2, dropped: identityProfileDroppedStatements[translatorconfig.ModeEC2]},
-		"AzureVM": {mode: translatorconfig.ModeAzureVM, dropped: identityProfileDroppedStatements[translatorconfig.ModeAzureVM]},
-		"GCE":     {mode: translatorconfig.ModeGCE, dropped: identityProfileDroppedStatements[translatorconfig.ModeGCE]},
-		"EKS":     {mode: translatorconfig.ModeEC2, k8sMode: translatorconfig.ModeEKS, dropped: identityProfileDroppedStatements[translatorconfig.ModeEKS]},
+		"EC2":     {mode: translatorconfig.ModeEC2},
+		"AzureVM": {mode: translatorconfig.ModeAzureVM},
+		"GCE":     {mode: translatorconfig.ModeGCE},
+		"EKS":     {mode: translatorconfig.ModeEC2, k8sMode: translatorconfig.ModeEKS},
 	}
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -519,7 +482,7 @@ func TestIdentityProfileStatements(t *testing.T) {
 			})
 			cfg, err := NewTranslatorWithName(common.Identity).Translate(confmap.New())
 			require.NoError(t, err)
-			assertIdentityProfileStatements(t, cfg.(*transformprocessor.Config), testCase.dropped)
+			assertIdentityProfileStatements(t, cfg.(*transformprocessor.Config))
 		})
 	}
 }
@@ -528,34 +491,16 @@ func TestIdentityECSProfileStatements(t *testing.T) {
 	cfg := transformprocessor.NewFactory().CreateDefaultConfig()
 	cfg, err := common.GetYamlFileToYamlConfig(cfg, transformIdentityECSConfig)
 	require.NoError(t, err)
-	assertIdentityProfileStatements(t, cfg.(*transformprocessor.Config), identityProfileDroppedStatements[translatorconfig.ModeECS])
+	assertIdentityProfileStatements(t, cfg.(*transformprocessor.Config))
 }
 
-func assertIdentityProfileStatements(t *testing.T, actualCfg *transformprocessor.Config, dropped []string) {
+func assertIdentityProfileStatements(t *testing.T, actualCfg *transformprocessor.Config) {
 	t.Helper()
 	require.Len(t, actualCfg.MetricStatements, 1)
 	require.Len(t, actualCfg.ProfileStatements, 1)
 	assert.Equal(t, "resource", string(actualCfg.ProfileStatements[0].Context))
-
-	expected := []string{}
-	for _, statement := range actualCfg.MetricStatements[0].Statements {
-		if slices.Contains(dropped, statement) {
-			continue
-		}
-		expected = append(expected, strings.TrimSuffix(statement, ` and resource.attributes["_tmp.log_type"] != "host"`))
-	}
-	assert.Equal(t, expected, actualCfg.ProfileStatements[0].Statements)
-	for _, statement := range dropped {
-		assert.Contains(t, actualCfg.MetricStatements[0].Statements, statement)
-	}
-	for _, statement := range actualCfg.ProfileStatements[0].Statements {
-		assert.NotContains(t, statement, `replace_pattern(resource.attributes["service.name"]`)
-		if !strings.HasPrefix(statement, `set(resource.attributes["service.name"]`) {
-			assert.NotContains(t, statement, `resource.attributes["service.name"],`)
-			continue
-		}
-		assert.Contains(t, statement, `where resource.attributes["service.name"] == nil`)
-		assert.Regexp(t, `^set\(resource\.attributes\["service\.name"\], resource\.attributes\["[^"]+"\]\) where `, statement)
-	}
+	assert.Equal(t, actualCfg.MetricStatements, actualCfg.ProfileStatements)
+	assert.Equal(t, actualCfg.LogStatements, actualCfg.ProfileStatements)
+	assert.Equal(t, actualCfg.TraceStatements, actualCfg.ProfileStatements)
 	require.NoError(t, actualCfg.Validate())
 }

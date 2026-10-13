@@ -32,7 +32,6 @@ const (
 	profilesPath           = "/v1development/profiles"
 	serviceNameAttribute   = "service.name"
 	ecsTaskFamilyAttribute = "aws.ecs.task.family"
-	fallbackServiceName    = "unknown_service"
 
 	platformKubernetes = "kubernetes"
 	platformECS        = "ecs"
@@ -75,7 +74,7 @@ func (t *profilesPipelineTranslator) Translate(conf *confmap.Conf) (*common.Comp
 		processors.Set(resourcedetection.NewTranslator(resourcedetection.WithName(common.OpenTelemetryKey)))
 	}
 	if platform == platformKubernetes {
-		processors.Set(k8sattributesprocessor.NewTranslator(profilesExporterName, k8sattributesprocessor.WithPodIPAssociation()))
+		processors.Set(k8sattributesprocessor.NewTranslator(profilesExporterName, k8sattributesprocessor.WithPodAssociation()))
 		setClusterName, err := transformprocessor.NewSetClusterNameTranslator(conf)
 		if err != nil {
 			return nil, err
@@ -84,11 +83,10 @@ func (t *profilesPipelineTranslator) Translate(conf *confmap.Conf) (*common.Comp
 			processors.Set(setClusterName)
 		}
 	}
+	if actions := inferredServiceNameActions(platform); len(actions) > 0 {
+		processors.Set(resourceprocessor.NewTranslator(resourceprocessor.WithOrderedActions(actions), common.WithName(profilesExporterName)))
+	}
 	processors.Set(transformprocessor.NewTranslatorWithName(common.Identity))
-	processors.Set(resourceprocessor.NewTranslator(
-		resourceprocessor.WithOrderedActions(profilesServiceNameActions(platform)),
-		common.WithName(profilesExporterName),
-	))
 
 	return &common.ComponentTranslators{
 		Receivers:  otlpreceiver.NewTranslators(conf, pipelineName, otlpKey),
@@ -114,15 +112,14 @@ func inferencePlatform() string {
 	return platformEC2
 }
 
-func profilesServiceNameActions(platform string) []resourceprocessor.AttributeAction {
-	actions := make([]resourceprocessor.AttributeAction, 0, 2)
+func inferredServiceNameActions(platform string) []resourceprocessor.AttributeAction {
 	switch platform {
 	case platformECS:
-		actions = append(actions, resourceprocessor.AttributeAction{Action: resourceprocessor.ActionInsert, Key: serviceNameAttribute, FromAttribute: ecsTaskFamilyAttribute})
+		return []resourceprocessor.AttributeAction{{Action: resourceprocessor.ActionInsert, Key: serviceNameAttribute, FromAttribute: ecsTaskFamilyAttribute}}
 	case platformEC2:
 		if inferred := EC2ServiceNameProvider(); inferred != "" {
-			actions = append(actions, resourceprocessor.AttributeAction{Action: resourceprocessor.ActionInsert, Key: serviceNameAttribute, Value: inferred})
+			return []resourceprocessor.AttributeAction{{Action: resourceprocessor.ActionInsert, Key: serviceNameAttribute, Value: inferred}}
 		}
 	}
-	return append(actions, resourceprocessor.AttributeAction{Action: resourceprocessor.ActionInsert, Key: serviceNameAttribute, Value: fallbackServiceName})
+	return nil
 }

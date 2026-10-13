@@ -21,16 +21,16 @@ const (
 
 type Option func(*translator)
 
-func WithPodIPAssociation() Option {
+func WithPodAssociation() Option {
 	return func(t *translator) {
-		t.podIPAssociation = true
+		t.podAssociation = true
 	}
 }
 
 type translator struct {
-	name             string
-	factory          processor.Factory
-	podIPAssociation bool
+	name           string
+	factory        processor.Factory
+	podAssociation bool
 }
 
 var _ common.ComponentTranslator = (*translator)(nil)
@@ -100,13 +100,16 @@ func (t *translator) Translate(conf *confmap.Conf) (component.Config, error) {
 			"pods": []interface{}{},
 		},
 	}
-	if t.podIPAssociation {
+	if t.podAssociation {
 		cfgMap["pod_association"] = []map[string]interface{}{
 			{"sources": []map[string]interface{}{
 				{"from": "resource_attribute", "name": containerIDAttribute},
 			}},
 			{"sources": []map[string]interface{}{
 				{"from": "resource_attribute", "name": podIPAttribute},
+			}},
+			{"sources": []map[string]interface{}{
+				{"from": "connection"},
 			}},
 		}
 	}
