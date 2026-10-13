@@ -163,6 +163,9 @@ func translateToEndpointConfig(conf *confmap.Conf, pipelineName string, configKe
 		certFile, _ = tls["cert_file"].(string)
 		keyFile, _ = tls["key_file"].(string)
 	}
+	if (certFile == "") != (keyFile == "") {
+		return []EndpointConfig{{err: fmt.Errorf("%s: tls requires both cert_file and key_file", configKey)}}
+	}
 
 	var configs []EndpointConfig
 	if grpcEndpoint, ok := otlpMap["grpc_endpoint"].(string); ok && grpcEndpoint != "" {

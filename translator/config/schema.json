@@ -1988,6 +1988,9 @@
                 "span_metrics_enabled": {
                   "description": "Enable span metrics connector to derive request, error, and duration metrics from traces.",
                   "type": "boolean"
+                },
+                "tls": {
+                  "$ref": "#/definitions/tlsDefinitions"
                 }
               },
               "additionalProperties": false
