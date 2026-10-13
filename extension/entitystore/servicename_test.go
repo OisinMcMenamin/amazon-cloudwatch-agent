@@ -66,12 +66,27 @@ func TestServiceNameFromIMDS(t *testing.T) {
 			},
 			want: "app-value",
 		},
+		"TagValueErrorFallsThroughToNextTag": {
+			provider: &fakeMetadataProvider{
+				tags:     []string{"service", "app"},
+				tagValue: map[string]string{"app": "app-value"},
+				iamRole:  "my-role",
+			},
+			want: "app-value",
+		},
 		"TagValueErrorFallsThroughToIamRole": {
 			provider: &fakeMetadataProvider{
 				tags:    []string{"service"},
 				iamRole: "my-role",
 			},
 			want: "my-role",
+		},
+		"TagValueErrorAndNoIamRole": {
+			provider: &fakeMetadataProvider{
+				tags:   []string{"service"},
+				iamErr: errors.New("no role"),
+			},
+			want: "",
 		},
 		"NoTagsIamRole": {
 			provider: &fakeMetadataProvider{
