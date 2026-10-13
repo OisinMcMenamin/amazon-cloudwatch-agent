@@ -231,6 +231,24 @@ func TestProfilesEnrichmentBehavior(t *testing.T) {
 				"deployment.environment.name": "aws_eks:test-cluster/shop",
 			},
 		},
+		"EKS/WorkloadInstanceAndVersion": {
+			k8sMode: config.ModeEKS,
+			attributes: map[string]string{
+				"k8s.namespace.name":        "shop",
+				"k8s.deployment.name":       "payments",
+				"k8s.pod.name":              "payments-7d9f8-abcde",
+				"k8s.container.name":        "app",
+				"app.kubernetes.io/version": "1.2.3",
+			},
+			want: map[string]string{
+				serviceNameAttribute:  "payments",
+				"k8s.workload.name":   "payments",
+				"k8s.workload.type":   "Deployment",
+				"service.instance.id": "shop/payments-7d9f8-abcde/app",
+				"service.version":     "1.2.3",
+			},
+			wantAbsent: []string{"app.kubernetes.io/version"},
+		},
 		"AKS/ResourceIDFromNodeResourceGroup": {
 			mode:    config.ModeAzureVM,
 			k8sMode: config.ModeAKS,
@@ -301,9 +319,17 @@ func runProfilesBehaviorCases(t *testing.T, testCases map[string]profilesBehavio
 
 			loaded := loadProcessorsAsAgent(t, got, conf)
 			sink := new(consumertest.ProfilesSink)
-			resourceProfiles := newProfilesProcessor(t, resourceprocessor.NewFactory(), loaded, "resource", profilesExporterName, sink)
-			identity := newProfilesProcessor(t, transformprocessor.NewFactory(), loaded, "transform", "identity", resourceProfiles)
-			require.NoError(t, identity.ConsumeProfiles(context.Background(), profiles))
+			var first xconsumer.Profiles = sink
+			keys := got.Processors.Keys()
+			for i := len(keys) - 1; i >= 0; i-- {
+				switch keys[i] {
+				case component.MustNewIDWithName("resource", profilesExporterName):
+					first = newProfilesProcessor(t, resourceprocessor.NewFactory(), loaded, "resource", profilesExporterName, first)
+				case component.MustNewIDWithName("transform", common.Identity):
+					first = newProfilesProcessor(t, transformprocessor.NewFactory(), loaded, "transform", common.Identity, first)
+				}
+			}
+			require.NoError(t, first.ConsumeProfiles(context.Background(), profiles))
 
 			require.Len(t, sink.AllProfiles(), 1)
 			attributes := sink.AllProfiles()[0].ResourceProfiles().At(0).Resource().Attributes()

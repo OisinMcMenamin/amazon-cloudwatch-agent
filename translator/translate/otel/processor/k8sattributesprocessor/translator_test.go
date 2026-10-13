@@ -103,27 +103,25 @@ func TestTranslateDefaultHasNoPodAssociation(t *testing.T) {
 	assert.Empty(t, k8sCfg.Association)
 }
 
-func TestTranslateWithPodIPAssociation(t *testing.T) {
+func TestTranslateWithPodAssociation(t *testing.T) {
 	t.Setenv("K8S_NODE_NAME", "node_name_from_env")
-	tt := NewTranslator("profiles", WithPodIPAssociation())
+	tt := NewTranslator("profiles", WithPodAssociation())
 	assert.Equal(t, "k8s_attributes/profiles", tt.ID().String())
 	cfg, err := tt.Translate(nil)
 	require.NoError(t, err)
 	k8sCfg, ok := cfg.(*k8sattributesprocessor.Config)
 	require.True(t, ok)
 
-	require.Len(t, k8sCfg.Association, 2)
+	require.Len(t, k8sCfg.Association, 3)
 	require.Len(t, k8sCfg.Association[0].Sources, 1)
 	assert.Equal(t, "resource_attribute", k8sCfg.Association[0].Sources[0].From)
 	assert.Equal(t, "container.id", k8sCfg.Association[0].Sources[0].Name)
 	require.Len(t, k8sCfg.Association[1].Sources, 1)
 	assert.Equal(t, "resource_attribute", k8sCfg.Association[1].Sources[0].From)
 	assert.Equal(t, "k8s.pod.ip", k8sCfg.Association[1].Sources[0].Name)
-	for _, assoc := range k8sCfg.Association {
-		for _, src := range assoc.Sources {
-			assert.NotEqual(t, "connection", src.From)
-		}
-	}
+	require.Len(t, k8sCfg.Association[2].Sources, 1)
+	assert.Equal(t, "connection", k8sCfg.Association[2].Sources[0].From)
+	assert.Empty(t, k8sCfg.Association[2].Sources[0].Name)
 	assert.Equal(t, "serviceAccount", string(k8sCfg.AuthType))
 	assert.Len(t, k8sCfg.Extract.Metadata, 12)
 	require.NoError(t, k8sCfg.Validate())
