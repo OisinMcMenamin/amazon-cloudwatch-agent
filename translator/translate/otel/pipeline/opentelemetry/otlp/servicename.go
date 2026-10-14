@@ -5,6 +5,7 @@ package otlp
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	override "github.com/amazon-contributing/opentelemetry-collector-contrib/override/aws"
@@ -15,7 +16,7 @@ import (
 
 const ec2InferenceTimeout = 5 * time.Second
 
-var EC2ServiceNameProvider = ec2ServiceName
+var EC2ServiceNameProvider = sync.OnceValue(ec2ServiceName)
 
 func ec2ServiceName() string {
 	ctx, cancel := context.WithTimeout(context.Background(), ec2InferenceTimeout)

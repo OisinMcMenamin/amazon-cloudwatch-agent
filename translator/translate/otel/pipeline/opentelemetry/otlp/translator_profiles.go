@@ -67,12 +67,7 @@ func (t *profilesPipelineTranslator) Translate(conf *confmap.Conf) (*common.Comp
 	if resourceAttrs := resourceprocessor.NewResourceAttributesTranslator(conf); resourceAttrs != nil {
 		processors.Set(resourceAttrs)
 	}
-	if platform == platformECS {
-		processors.Set(resourcedetection.NewTranslator(resourcedetection.WithName(profilesExporterName), resourcedetection.WithECSConfig(resourcedetection.ProfilesECSResourceDetectionConfig)))
-		extensions.Set(agenthealth.NewTranslatorWithStatusCode(agenthealth.StatusCodeName, nil, true))
-	} else {
-		processors.Set(resourcedetection.NewTranslator(resourcedetection.WithName(common.OpenTelemetryKey)))
-	}
+	processors.Set(resourcedetection.NewTranslator(resourcedetection.WithName(common.OpenTelemetryKey)))
 	if platform == platformKubernetes {
 		processors.Set(k8sattributesprocessor.NewTranslator(profilesExporterName, k8sattributesprocessor.WithPodAssociation()))
 		setClusterName, err := transformprocessor.NewSetClusterNameTranslator(conf)
@@ -83,8 +78,8 @@ func (t *profilesPipelineTranslator) Translate(conf *confmap.Conf) (*common.Comp
 			processors.Set(setClusterName)
 		}
 	}
-	if actions := inferredServiceNameActions(platform); len(actions) > 0 {
-		processors.Set(resourceprocessor.NewTranslator(resourceprocessor.WithOrderedActions(actions), common.WithName(profilesExporterName)))
+	if inferred := newInferredServiceNameTranslator(profilesExporterName, platform); inferred != nil {
+		processors.Set(inferred)
 	}
 	processors.Set(transformprocessor.NewTranslatorWithName(common.Identity))
 
@@ -110,6 +105,22 @@ func inferencePlatform() string {
 		return platformECS
 	}
 	return platformEC2
+}
+
+// NewInferredServiceNameTranslator returns the resource processor that inserts the service.name
+// inferred for the current platform (EC2 instance tag or IAM role, ECS task family), or nil when
+// there is nothing to infer. It runs ahead of transform/identity so the insert beats the
+// unknown_service fallback while never overwriting a sender-supplied value.
+func NewInferredServiceNameTranslator(name string) common.ComponentTranslator {
+	return newInferredServiceNameTranslator(name, inferencePlatform())
+}
+
+func newInferredServiceNameTranslator(name, platform string) common.ComponentTranslator {
+	actions := inferredServiceNameActions(platform)
+	if len(actions) == 0 {
+		return nil
+	}
+	return resourceprocessor.NewTranslator(resourceprocessor.WithOrderedActions(actions), common.WithName(name))
 }
 
 func inferredServiceNameActions(platform string) []resourceprocessor.AttributeAction {

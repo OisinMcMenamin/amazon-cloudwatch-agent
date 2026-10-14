@@ -279,19 +279,19 @@ func TestTranslate_NonOpenTelemetryKey_HasMiddleware(t *testing.T) {
 	assert.NotNil(t, gotCfg.MiddlewareID)
 }
 
-func TestTranslate_ECSConfigOverride(t *testing.T) {
+func TestTranslate_ECSTaskFamily(t *testing.T) {
 	context.CurrentContext().SetMode(translatorconfig.ModeEC2)
 	ecsutil.GetECSUtilSingleton().Region = "us-east-1"
 	t.Cleanup(func() { ecsutil.GetECSUtilSingleton().Region = "" })
 	conf := confmap.NewFromStringMap(map[string]interface{}{})
 
-	got, err := NewTranslator(WithName("profiles"), WithECSConfig(ProfilesECSResourceDetectionConfig)).Translate(conf)
+	got, err := NewTranslator(WithName(common.OpenTelemetryKey)).Translate(conf)
 	require.NoError(t, err)
 	gotCfg := got.(*resourcedetectionprocessor.Config)
 	assert.Equal(t, []string{"env", "ecs", "ec2"}, gotCfg.Detectors)
 	assert.True(t, gotCfg.DetectorConfig.ECSConfig.ResourceAttributes.AwsEcsTaskFamily.Enabled)
 
-	got, err = NewTranslator(WithName(common.OpenTelemetryKey)).Translate(conf)
+	got, err = NewTranslator(WithName("application_signals")).Translate(conf)
 	require.NoError(t, err)
 	gotCfg = got.(*resourcedetectionprocessor.Config)
 	assert.False(t, gotCfg.DetectorConfig.ECSConfig.ResourceAttributes.AwsEcsTaskFamily.Enabled)

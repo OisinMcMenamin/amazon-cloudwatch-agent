@@ -202,7 +202,34 @@ processors:
         send_batch_max_size: 10000
         send_batch_size: 10000
         timeout: 30s
+    resource/logs:
+        attributes:
+            - action: insert
+              converted_type: ""
+              from_attribute: ""
+              from_context: ""
+              key: service.name
+              pattern: ""
+              value: my-ec2-service
+    resource/metrics:
+        attributes:
+            - action: insert
+              converted_type: ""
+              from_attribute: ""
+              from_context: ""
+              key: service.name
+              pattern: ""
+              value: my-ec2-service
     resource/profiles:
+        attributes:
+            - action: insert
+              converted_type: ""
+              from_attribute: ""
+              from_context: ""
+              key: service.name
+              pattern: ""
+              value: my-ec2-service
+    resource/traces:
         attributes:
             - action: insert
               converted_type: ""
@@ -873,6 +900,7 @@ service:
                 - otlp_http/logs
             processors:
                 - resourcedetection/opentelemetry
+                - resource/logs
                 - transform/identity
                 - transform/logs_routing
                 - attributestocontext/opentelemetry
@@ -893,6 +921,7 @@ service:
                 - otlp_http/metrics
             processors:
                 - resourcedetection/opentelemetry
+                - resource/metrics
                 - transform/identity
                 - awsattributelimit/opentelemetry_metrics
                 - batch/opentelemetry_metrics
@@ -920,6 +949,7 @@ service:
                 - otlp_http/traces
             processors:
                 - resourcedetection/opentelemetry
+                - resource/traces
                 - transform/identity
                 - batch/opentelemetry_traces
             receivers:

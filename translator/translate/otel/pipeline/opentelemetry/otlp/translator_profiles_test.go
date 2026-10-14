@@ -134,9 +134,9 @@ func TestProfilesPipelineTranslator(t *testing.T) {
 			ecs:    true,
 			want: &want{
 				receivers:  []string{"otlp/grpc_127_0_0_1_4317", "otlp/http_127_0_0_1_4318"},
-				processors: []string{"transform/otlp_scope", "resourcedetection/profiles", "resource/profiles", "transform/identity"},
+				processors: []string{"transform/otlp_scope", "resourcedetection/opentelemetry", "resource/profiles", "transform/identity"},
 				exporters:  []string{"otlp_http/profiles"},
-				extensions: []string{"sigv4auth/monitoring", "agenthealth/opentelemetry_profiles", "agenthealth/statuscode"},
+				extensions: []string{"sigv4auth/monitoring", "agenthealth/opentelemetry_profiles"},
 			},
 		},
 		"WithKubernetesAndClusterName": {
@@ -304,7 +304,7 @@ func TestProfilesServiceNameInferredOnECS(t *testing.T) {
 	conf := confmap.NewFromStringMap(otlpSectionConf)
 	got, err := (&profilesPipelineTranslator{}).Translate(conf)
 	require.NoError(t, err)
-	detectionTranslator, ok := got.Processors.Get(component.MustNewIDWithName("resourcedetection", "profiles"))
+	detectionTranslator, ok := got.Processors.Get(component.MustNewIDWithName("resourcedetection", common.OpenTelemetryKey))
 	require.True(t, ok)
 	detectionCfg, err := detectionTranslator.Translate(conf)
 	require.NoError(t, err)
@@ -312,8 +312,7 @@ func TestProfilesServiceNameInferredOnECS(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, []string{"env", "ecs", "ec2"}, detection.Detectors)
 	assert.True(t, detection.DetectorConfig.ECSConfig.ResourceAttributes.AwsEcsTaskFamily.Enabled)
-	require.NotNil(t, detection.MiddlewareID)
-	assert.Equal(t, "agenthealth/statuscode", detection.MiddlewareID.String())
+	assert.Nil(t, detection.MiddlewareID)
 
 	cfg := profilesResourceProcessorConfig(t, conf)
 	require.Len(t, cfg.AttributesActions, 1)
@@ -496,7 +495,7 @@ func assertProfilesInvariants(t *testing.T, got *common.ComponentTranslators) {
 	resourceDetectionIndex, identityIndex, inferredIndex := -1, -1, -1
 	for i, id := range keys {
 		switch id.String() {
-		case "resourcedetection/opentelemetry", "resourcedetection/profiles":
+		case "resourcedetection/opentelemetry":
 			resourceDetectionIndex = i
 		case "transform/identity":
 			identityIndex = i
