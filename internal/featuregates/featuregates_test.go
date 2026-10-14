@@ -51,3 +51,10 @@ func TestEnable_StableGateIsNoop(t *testing.T) {
 	require.True(t, gate.IsEnabled())
 	require.NoError(t, Enable(reg, ProfilesSupportGateID))
 }
+
+func TestCanEnable_OtherGateOnly(t *testing.T) {
+	reg := featuregate.NewRegistry()
+	_, err := reg.Register("service.someOtherGate", featuregate.StageAlpha)
+	require.NoError(t, err)
+	assert.False(t, CanEnable(reg, ProfilesSupportGateID))
+}
