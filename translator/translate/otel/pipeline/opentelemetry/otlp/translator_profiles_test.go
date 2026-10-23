@@ -73,7 +73,7 @@ func TestProfilesPipelineTranslator(t *testing.T) {
 			region: "us-east-1",
 			want: &want{
 				receivers:  []string{"otlp/grpc_127_0_0_1_4317", "otlp/http_127_0_0_1_4318"},
-				processors: []string{"transform/otlp_scope", "resourcedetection/opentelemetry", "transform/identity"},
+				processors: []string{"transform/drop_original_payload", "transform/otlp_scope", "resourcedetection/opentelemetry", "transform/identity"},
 				exporters:  []string{"otlp_http/profiles"},
 				extensions: []string{"sigv4auth/monitoring", "agenthealth/opentelemetry_profiles"},
 			},
@@ -92,7 +92,7 @@ func TestProfilesPipelineTranslator(t *testing.T) {
 			region: "us-east-1",
 			want: &want{
 				receivers:  []string{"otlp/grpc_127_0_0_1_5317", "otlp/http_127_0_0_1_5318"},
-				processors: []string{"transform/otlp_scope", "resourcedetection/opentelemetry", "transform/identity"},
+				processors: []string{"transform/drop_original_payload", "transform/otlp_scope", "resourcedetection/opentelemetry", "transform/identity"},
 				exporters:  []string{"otlp_http/profiles"},
 				extensions: []string{"sigv4auth/monitoring", "agenthealth/opentelemetry_profiles"},
 			},
@@ -109,7 +109,7 @@ func TestProfilesPipelineTranslator(t *testing.T) {
 			region: "us-east-1",
 			want: &want{
 				receivers:  []string{"otlp/grpc_127_0_0_1_4317", "otlp/http_127_0_0_1_4318"},
-				processors: []string{"transform/otlp_scope", "resource/opentelemetry", "resourcedetection/opentelemetry", "transform/identity"},
+				processors: []string{"transform/drop_original_payload", "transform/otlp_scope", "resource/opentelemetry", "resourcedetection/opentelemetry", "transform/identity"},
 				exporters:  []string{"otlp_http/profiles"},
 				extensions: []string{"sigv4auth/monitoring", "agenthealth/opentelemetry_profiles"},
 			},
@@ -120,7 +120,7 @@ func TestProfilesPipelineTranslator(t *testing.T) {
 			k8sMode: config.ModeEKS,
 			want: &want{
 				receivers:  []string{"otlp/grpc_127_0_0_1_4317", "otlp/http_127_0_0_1_4318"},
-				processors: []string{"transform/otlp_scope", "resourcedetection/opentelemetry", "k8s_attributes/profiles", "transform/set_cluster_name", "transform/identity"},
+				processors: []string{"transform/drop_original_payload", "transform/otlp_scope", "resourcedetection/opentelemetry", "k8s_attributes/profiles", "transform/set_cluster_name", "transform/identity"},
 				exporters:  []string{"otlp_http/profiles"},
 				extensions: []string{"sigv4auth/monitoring", "agenthealth/opentelemetry_profiles"},
 			},
@@ -139,7 +139,7 @@ func TestProfilesPipelineTranslator(t *testing.T) {
 			k8sMode: config.ModeEKS,
 			want: &want{
 				receivers:  []string{"otlp/grpc_127_0_0_1_4317", "otlp/http_127_0_0_1_4318"},
-				processors: []string{"transform/otlp_scope", "resource/opentelemetry", "resourcedetection/opentelemetry", "k8s_attributes/profiles", "transform/set_cluster_name", "transform/identity"},
+				processors: []string{"transform/drop_original_payload", "transform/otlp_scope", "resource/opentelemetry", "resourcedetection/opentelemetry", "k8s_attributes/profiles", "transform/set_cluster_name", "transform/identity"},
 				exporters:  []string{"otlp_http/profiles"},
 				extensions: []string{"sigv4auth/monitoring", "agenthealth/opentelemetry_profiles"},
 			},
@@ -310,7 +310,8 @@ func assertProfilesInvariants(t *testing.T, got *common.ComponentTranslators) {
 	for _, id := range keys {
 		assert.NotEqual(t, "batch", id.Type().String())
 	}
-	assert.Equal(t, "transform/otlp_scope", keys[0].String())
+	assert.Equal(t, "transform/drop_original_payload", keys[0].String(), "original_payload is cleared before anything else holds the profile")
+	assert.Equal(t, "transform/otlp_scope", keys[1].String())
 	assert.Equal(t, "transform/identity", keys[len(keys)-1].String())
 	resourceDetectionIndex, identityIndex, inferredIndex := -1, -1, -1
 	for i, id := range keys {
@@ -322,7 +323,7 @@ func assertProfilesInvariants(t *testing.T, got *common.ComponentTranslators) {
 		case "resource/profiles":
 			inferredIndex = i
 		case "resource/opentelemetry":
-			assert.Equal(t, 1, i)
+			assert.Equal(t, 2, i, "configured resource attributes apply right after the scope transform")
 		}
 	}
 	assert.GreaterOrEqual(t, identityIndex, 0)

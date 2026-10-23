@@ -28,8 +28,13 @@ import (
 
 const (
 	profilesExporterName = "profiles"
-	monitoringService    = "monitoring"
-	profilesPath         = "/v1development/profiles"
+	// dropOriginalPayloadName is the transform that clears Profile.original_payload and its format.
+	// A converter (JFR, pprof) may attach its source bytes to the OTLP profile; CloudWatch stores
+	// nothing from them, so the agent removes them before export. It runs first so the bytes never
+	// reach the exporter queue. The OTTL function is registered in internal/transformfuncs.
+	dropOriginalPayloadName = "drop_original_payload"
+	monitoringService       = "monitoring"
+	profilesPath            = "/v1development/profiles"
 
 	platformKubernetes = "kubernetes"
 	platformECS        = "ecs"
@@ -61,6 +66,7 @@ func (t *profilesPipelineTranslator) Translate(conf *confmap.Conf) (*common.Comp
 	platform := inferencePlatform()
 	processors := common.NewTranslatorMap[component.Config, component.ID]()
 	extensions := common.NewTranslatorMap[component.Config, component.ID](sigv4Ext, agentHealthExt)
+	processors.Set(newDropOriginalPayloadTranslator())
 	processors.Set(newOtlpScopeTranslator())
 	if resourceAttrs := resourceprocessor.NewResourceAttributesTranslator(conf); resourceAttrs != nil {
 		processors.Set(resourceAttrs)
@@ -87,6 +93,13 @@ func (t *profilesPipelineTranslator) Translate(conf *confmap.Conf) (*common.Comp
 		)),
 		Extensions: extensions,
 	}, nil
+}
+
+func newDropOriginalPayloadTranslator() common.ComponentTranslator {
+	return transformprocessor.NewTranslatorWithName(dropOriginalPayloadName,
+		transformprocessor.WithErrorMode("ignore"),
+		transformprocessor.WithProfileContextStatements([]string{"drop_original_payload()"}),
+	)
 }
 
 func inferencePlatform() string {

@@ -40,7 +40,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awscontainerinsightreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awscontainerinsightskueuereceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsecscontainermetricsreceiver"
@@ -84,6 +83,7 @@ import (
 	"github.com/aws/amazon-cloudwatch-agent/extension/nodemetadatacache"
 	"github.com/aws/amazon-cloudwatch-agent/extension/selftelemetry"
 	"github.com/aws/amazon-cloudwatch-agent/extension/server"
+	"github.com/aws/amazon-cloudwatch-agent/internal/transformfuncs"
 	"github.com/aws/amazon-cloudwatch-agent/plugins/outputs/cloudwatch"
 	"github.com/aws/amazon-cloudwatch-agent/plugins/processors/awsapplicationsignals"
 	"github.com/aws/amazon-cloudwatch-agent/plugins/processors/awsentity"
@@ -162,7 +162,7 @@ func Factories() (otelcol.Factories, error) {
 		rollupprocessor.NewFactory(),
 		spanprocessor.NewFactory(),
 		tailsamplingprocessor.NewFactory(),
-		transformprocessor.NewFactory(),
+		transformfuncs.NewTransformFactory(),
 	); err != nil {
 		return otelcol.Factories{}, err
 	}

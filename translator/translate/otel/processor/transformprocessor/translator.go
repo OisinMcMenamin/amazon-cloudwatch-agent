@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/processor"
 
+	"github.com/aws/amazon-cloudwatch-agent/internal/transformfuncs"
 	"github.com/aws/amazon-cloudwatch-agent/translator/config"
 	"github.com/aws/amazon-cloudwatch-agent/translator/context"
 	"github.com/aws/amazon-cloudwatch-agent/translator/translate/otel/common"
@@ -82,6 +83,13 @@ func WithProfileResourceStatements(statements []string) Option {
 	}
 }
 
+// WithProfileContextStatements sets OTTL statements to execute in the "profile" context for profiles.
+func WithProfileContextStatements(statements []string) Option {
+	return func(t *translator) {
+		t.profileContextStatements = statements
+	}
+}
+
 // WithErrorMode sets the error mode for dynamic statements. Defaults to "propagate".
 func WithErrorMode(mode string) Option {
 	return func(t *translator) {
@@ -118,23 +126,24 @@ func WithMetricScopeStatements(statements []string) Option {
 }
 
 type translator struct {
-	name                  string
-	factory               processor.Factory
-	logStatements         []string
-	logContextStatements  []string
-	metricStatements      []string
-	traceStatements       []string
-	profileStatements     []string
-	scopeStatements       []string
-	logScopeStatements    []string
-	metricScopeStatements []string
-	errorMode             string
+	name                     string
+	factory                  processor.Factory
+	logStatements            []string
+	logContextStatements     []string
+	metricStatements         []string
+	traceStatements          []string
+	profileStatements        []string
+	profileContextStatements []string
+	scopeStatements          []string
+	logScopeStatements       []string
+	metricScopeStatements    []string
+	errorMode                string
 }
 
 var _ common.ComponentTranslator = (*translator)(nil)
 
 func NewTranslatorWithName(name string, opts ...Option) common.ComponentTranslator {
-	t := &translator{name: name, factory: transformprocessor.NewFactory()}
+	t := &translator{name: name, factory: transformfuncs.NewTransformFactory()}
 	for _, opt := range opts {
 		opt(t)
 	}
@@ -151,6 +160,7 @@ func (t *translator) hasDynamicStatements() bool {
 		len(t.metricStatements) > 0 ||
 		len(t.traceStatements) > 0 ||
 		len(t.profileStatements) > 0 ||
+		len(t.profileContextStatements) > 0 ||
 		len(t.scopeStatements) > 0 ||
 		len(t.logScopeStatements) > 0 ||
 		len(t.metricScopeStatements) > 0
@@ -194,6 +204,9 @@ func (t *translator) Translate(conf *confmap.Conf) (component.Config, error) {
 		}
 		if len(t.logContextStatements) > 0 {
 			cfgMap["log_statements"] = appendStatements(cfgMap["log_statements"], buildLogStatements(t.logContextStatements, errorMode))
+		}
+		if len(t.profileContextStatements) > 0 {
+			cfgMap["profile_statements"] = appendStatements(cfgMap["profile_statements"], buildContextStatements("profile", t.profileContextStatements, errorMode))
 		}
 		if err := confmap.NewFromStringMap(cfgMap).Unmarshal(&cfg); err != nil {
 			return nil, fmt.Errorf("failed to configure transform processor: %w", err)
@@ -268,12 +281,16 @@ func buildResourceStatements(statements []string, errorMode string) map[string]a
 }
 
 func buildLogStatements(statements []string, errorMode string) map[string]any {
+	return buildContextStatements("log", statements, errorMode)
+}
+
+func buildContextStatements(ottlContext string, statements []string, errorMode string) map[string]any {
 	stmts := make([]any, len(statements))
 	for i, s := range statements {
 		stmts[i] = s
 	}
 	return map[string]any{
-		"context":    "log",
+		"context":    ottlContext,
 		"error_mode": errorMode,
 		"statements": stmts,
 	}
