@@ -161,6 +161,8 @@ github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERo
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/Microsoft/hcsshim v0.13.0 h1:/BcXOiS6Qi7N9XqUcv27vkIuVOkBEcWstd2pMlWSeaA=
 github.com/Microsoft/hcsshim v0.13.0/go.mod h1:9KWJ/8DgU+QzYGupX4tzMhRQE8h6w90lH6HAaclpEok=
+github.com/OisinMcMenamin/opentelemetry-collector-contrib/processor/awsattributelimitprocessor v0.0.0-20261023111315-39f375065d06 h1:osagpBfzKInG+ZXisk9Ac8NZetGM9hbyBfyvyE8Efyo=
+github.com/OisinMcMenamin/opentelemetry-collector-contrib/processor/awsattributelimitprocessor v0.0.0-20261023111315-39f375065d06/go.mod h1:knZZPmTMhXkk1Od1Il9pdNn6sR5NsOlVEUVHY/dtMSo=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/Shopify/sarama v1.19.0/go.mod h1:FVkBWblsNy7DGZRfXLU0O9RCGt5g3g3yEuWXgklEdEo=
 github.com/Shopify/sarama v1.37.2 h1:LoBbU0yJPte0cE5TZCGdlzZRmMgMtZU/XgnUKZg9Cv4=
