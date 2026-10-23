@@ -1744,6 +1744,17 @@ processors:
                 - set(scope.attributes["cloudwatch.solution"], "otel-host-metrics")
         profile_statements: []
         trace_statements: []
+    transform/drop_original_payload:
+        error_mode: ignore
+        flatten_data: false
+        log_statements: []
+        metric_statements: []
+        profile_statements:
+            - context: profile
+              error_mode: ignore
+              statements:
+                - drop_original_payload()
+        trace_statements: []
     transform/identity:
         error_mode: ignore
         flatten_data: false
@@ -3267,6 +3278,7 @@ service:
             exporters:
                 - otlp_http/profiles
             processors:
+                - transform/drop_original_payload
                 - transform/otlp_scope
                 - resourcedetection/opentelemetry
                 - k8s_attributes/profiles
