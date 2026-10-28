@@ -220,6 +220,26 @@ func TestProfilesExporterEndpoint(t *testing.T) {
 	}
 }
 
+func TestProfilesExporterQueueCap(t *testing.T) {
+	t.Cleanup(otlpreceiver.ClearConfigCache)
+	resetGlobalConfig(t, "us-east-1")
+	conf := confmap.NewFromStringMap(otlpSectionConf)
+	got, err := (&profilesPipelineTranslator{}).Translate(conf)
+	require.NoError(t, err)
+	exporterTranslator, ok := got.Exporters.Get(component.MustNewIDWithName("otlp_http", "profiles"))
+	require.True(t, ok)
+	cfg, err := exporterTranslator.Translate(conf)
+	require.NoError(t, err)
+	exporterCfg, ok := cfg.(*otlphttpexporter.Config)
+	require.True(t, ok)
+
+	require.True(t, exporterCfg.QueueConfig.HasValue(), "profiles exporter must set an explicit send queue")
+	q := exporterCfg.QueueConfig.Get()
+	assert.EqualValues(t, profilesQueueSize, q.QueueSize)
+	assert.False(t, q.BlockOnOverflow, "queue must stay non-blocking (drop on overflow)")
+	assert.False(t, q.Batch.HasValue(), "exporter batcher must stay off")
+}
+
 func TestProfilesServiceNameFallbackOwnedByIdentity(t *testing.T) {
 	t.Cleanup(otlpreceiver.ClearConfigCache)
 	resetGlobalConfig(t, "us-east-1")
