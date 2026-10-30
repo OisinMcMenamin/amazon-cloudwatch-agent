@@ -25,10 +25,11 @@ type EndpointConfig struct {
 }
 
 type translator struct {
-	name          string
-	factory       exporter.Factory
-	endpoint      EndpointConfig
-	authenticator component.ID
+	name             string
+	factory          exporter.Factory
+	endpoint         EndpointConfig
+	authenticator    component.ID
+	requestQueueSize *int64
 }
 
 type Option func(*translator)
@@ -37,6 +38,13 @@ type Option func(*translator)
 func WithAuthenticator(id component.ID) Option {
 	return func(t *translator) {
 		t.authenticator = id
+	}
+}
+
+// WithRequestQueueSize sets the exporter's send-queue capacity.
+func WithRequestQueueSize(size int64) Option {
+	return func(t *translator) {
+		t.requestQueueSize = &size
 	}
 }
 
@@ -88,6 +96,14 @@ func (t *translator) Translate(_ *confmap.Conf) (component.Config, error) {
 	// which the collector's confmap round-trip promotes back to Some(defaults),
 	// re-enabling the batcher.
 	cfg.QueueConfig = configoptional.None[exporterhelper.QueueBatchConfig]()
+
+	// None marshals as an absent key, which the collector refills with the
+	// factory default, so set an explicit queue and change only the capacity.
+	if t.requestQueueSize != nil {
+		queueConfig := exporterhelper.NewDefaultQueueConfig()
+		queueConfig.QueueSize = *t.requestQueueSize
+		cfg.QueueConfig = configoptional.Some(queueConfig)
+	}
 
 	return cfg, nil
 }

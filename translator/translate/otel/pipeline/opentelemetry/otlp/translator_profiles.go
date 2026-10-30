@@ -32,6 +32,9 @@ const (
 	monitoringService    = "monitoring"
 	profilesPath         = "/v1development/profiles"
 
+	// profilesQueueSize caps the profiles exporter's send queue.
+	profilesQueueSize int64 = 64
+
 	platformKubernetes = "kubernetes"
 	platformECS        = "ecs"
 	platformEC2        = "ec2"
@@ -90,6 +93,7 @@ func (t *profilesPipelineTranslator) Translate(conf *confmap.Conf) (*common.Comp
 		Exporters: common.NewTranslatorMap(otlphttp.NewTranslatorWithName(profilesExporterName,
 			otlphttp.EndpointConfig{ProfilesEndpoint: common.ServiceEndpoint(monitoringService, region, profilesPath)},
 			otlphttp.WithAuthenticator(agentHealthExt.ID()),
+			otlphttp.WithRequestQueueSize(profilesQueueSize),
 		)),
 		Extensions: extensions,
 	}, nil
