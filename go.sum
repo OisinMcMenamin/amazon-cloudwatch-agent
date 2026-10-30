@@ -165,6 +165,8 @@ github.com/OisinMcMenamin/opentelemetry-collector-contrib/processor/awsattribute
 github.com/OisinMcMenamin/opentelemetry-collector-contrib/processor/awsattributelimitprocessor v0.0.0-20261023111315-39f375065d06/go.mod h1:knZZPmTMhXkk1Od1Il9pdNn6sR5NsOlVEUVHY/dtMSo=
 github.com/OisinMcMenamin/opentelemetry-collector-contrib/processor/awsattributelimitprocessor v0.0.0-20261030140101-11483793611e h1:LuyL32ykwAsbf//SGTMvS06boj/HZTsaly2kwdax38I=
 github.com/OisinMcMenamin/opentelemetry-collector-contrib/processor/awsattributelimitprocessor v0.0.0-20261030140101-11483793611e/go.mod h1:knZZPmTMhXkk1Od1Il9pdNn6sR5NsOlVEUVHY/dtMSo=
+github.com/OisinMcMenamin/opentelemetry-collector-contrib/processor/awsattributelimitprocessor v0.0.0-20261030172730-847ab82e8c42 h1:sKeTdnqe5nP22XRS8YE0OwLF3IvK5hg/rI2dFIPyiUU=
+github.com/OisinMcMenamin/opentelemetry-collector-contrib/processor/awsattributelimitprocessor v0.0.0-20261030172730-847ab82e8c42/go.mod h1:knZZPmTMhXkk1Od1Il9pdNn6sR5NsOlVEUVHY/dtMSo=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/Shopify/sarama v1.19.0/go.mod h1:FVkBWblsNy7DGZRfXLU0O9RCGt5g3g3yEuWXgklEdEo=
 github.com/Shopify/sarama v1.37.2 h1:LoBbU0yJPte0cE5TZCGdlzZRmMgMtZU/XgnUKZg9Cv4=
