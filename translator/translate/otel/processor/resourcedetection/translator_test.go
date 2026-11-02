@@ -17,6 +17,7 @@ import (
 
 	translatorconfig "github.com/aws/amazon-cloudwatch-agent/translator/config"
 	"github.com/aws/amazon-cloudwatch-agent/translator/context"
+	"github.com/aws/amazon-cloudwatch-agent/translator/translate/otel/common"
 	"github.com/aws/amazon-cloudwatch-agent/translator/util/ecsutil"
 )
 
@@ -264,6 +265,28 @@ func TestTranslate_OpenTelemetryKey_NoMiddleware(t *testing.T) {
 	require.NotNil(t, got)
 	gotCfg := got.(*resourcedetectionprocessor.Config)
 	assert.Nil(t, gotCfg.MiddlewareID)
+}
+
+func TestTranslate_ECSTaskFamily(t *testing.T) {
+	testCases := map[string]struct {
+		opts []Option
+		want bool
+	}{
+		"SharedDetector":     {opts: []Option{WithName(common.OpenTelemetryKey)}, want: true},
+		"AppSignalsDetector": {opts: []Option{WithSignal(pipeline.SignalTraces)}, want: false},
+	}
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			context.ResetContext()
+			context.CurrentContext().SetMode(translatorconfig.ModeEC2)
+			ecsutil.GetECSUtilSingleton().Region = "test-region"
+			got, err := NewTranslator(testCase.opts...).Translate(confmap.New())
+			require.NoError(t, err)
+			gotCfg := got.(*resourcedetectionprocessor.Config)
+			assert.Equal(t, testCase.want, gotCfg.DetectorConfig.ECSConfig.ResourceAttributes.AwsEcsTaskFamily.Enabled)
+			assert.True(t, gotCfg.DetectorConfig.ECSConfig.ResourceAttributes.AwsEcsClusterArn.Enabled)
+		})
+	}
 }
 
 func TestTranslate_NonOpenTelemetryKey_HasMiddleware(t *testing.T) {

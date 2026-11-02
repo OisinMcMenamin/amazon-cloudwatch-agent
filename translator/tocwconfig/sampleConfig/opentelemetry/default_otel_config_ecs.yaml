@@ -377,7 +377,7 @@ processors:
                 aws.ecs.task.arn:
                     enabled: true
                 aws.ecs.task.family:
-                    enabled: false
+                    enabled: true
                 aws.ecs.task.id:
                     enabled: false
                 aws.ecs.task.revision:
